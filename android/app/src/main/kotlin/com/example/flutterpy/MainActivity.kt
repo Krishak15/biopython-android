@@ -38,6 +38,8 @@ class MainActivity : FlutterActivity() {
                     "healthBiology" -> handleHealthBiology(result)
                     "proteinAnalyze" -> handleProteinAnalyze(call, result)
                     "dnaClassify" -> handleDnaClassify(call, result)
+                    "ncbiSearch" -> handleNcbiSearch(call, result)
+                    "ncbiFetch" -> handleNcbiFetch(call, result)
                     else -> result.notImplemented()
                 }
             }
@@ -132,6 +134,40 @@ class MainActivity : FlutterActivity() {
                 withContext(Dispatchers.Main) {
                     result.error("NATIVE_ERROR", e.message, e.stackTraceToString())
                 }
+            }
+        }
+    }
+
+    private fun handleNcbiSearch(call: MethodCall, result: MethodChannel.Result) {
+        val query = call.argument<String>("query") ?: ""
+        val db = call.argument<String>("db") ?: "protein"
+        Log.d(TAG, "handleNcbiSearch: start query=$query db=$db")
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val module = Python.getInstance().getModule("ncbi_service")
+                val jsonResult = module.callAttr("search_ncbi", query, db).toString()
+                Log.d(TAG, "handleNcbiSearch: success")
+                withContext(Dispatchers.Main) { result.success(jsonResult) }
+            } catch (e: Exception) {
+                Log.e(TAG, "handleNcbiSearch error", e)
+                withContext(Dispatchers.Main) { result.error("NCBI_SEARCH_ERROR", e.message, null) }
+            }
+        }
+    }
+
+    private fun handleNcbiFetch(call: MethodCall, result: MethodChannel.Result) {
+        val uid = call.argument<String>("id") ?: ""
+        val db = call.argument<String>("db") ?: "protein"
+        Log.d(TAG, "handleNcbiFetch: start id=$uid db=$db")
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val module = Python.getInstance().getModule("ncbi_service")
+                val jsonResult = module.callAttr("fetch_and_analyze", uid, db).toString()
+                Log.d(TAG, "handleNcbiFetch: success")
+                withContext(Dispatchers.Main) { result.success(jsonResult) }
+            } catch (e: Exception) {
+                Log.e(TAG, "handleNcbiFetch error", e)
+                withContext(Dispatchers.Main) { result.error("NCBI_FETCH_ERROR", e.message, null) }
             }
         }
     }

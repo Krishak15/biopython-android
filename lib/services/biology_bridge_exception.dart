@@ -245,4 +245,32 @@ class PythonImageBridge {
   /// Legacy method for backward compatibility. Use analyzeProtein() instead.
   @Deprecated('Use analyzeProtein() instead')
   Future<Map<String, dynamic>> healthCheck() => healthBiology();
+
+  /// Search NCBI database (e.g., protein, nucleotide)
+  Future<List<Map<String, dynamic>>> ncbiSearch(String query, {String db = 'protein'}) async {
+    try {
+      final String? raw = await _channel.invokeMethod('ncbiSearch', {'query': query, 'db': db});
+      final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
+      if (jsonMap['status'] == 'success') {
+        return List<Map<String, dynamic>>.from(jsonMap['results'] as List);
+      }
+      throw BiologyBridgeException(jsonMap['message'] as String? ?? 'Search failed');
+    } catch (e) {
+      throw BiologyBridgeException(e.toString());
+    }
+  }
+
+  /// Fetch a record from NCBI and analyze it
+  Future<Map<String, dynamic>> ncbiFetch(String id, {String db = 'protein'}) async {
+    try {
+      final String? raw = await _channel.invokeMethod('ncbiFetch', {'id': id, 'db': db});
+      final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
+      if (jsonMap['status'] == 'success') {
+        return jsonMap;
+      }
+      throw BiologyBridgeException(jsonMap['message'] as String? ?? 'Fetch failed');
+    } catch (e) {
+      throw BiologyBridgeException(e.toString());
+    }
+  }
 }

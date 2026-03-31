@@ -33,6 +33,13 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
   String? _dnaError;
   int _kmerSize = 3;
 
+  // NCBI search results
+  final _ncbiController = TextEditingController();
+  List<Map<String, dynamic>> _ncbiResults = [];
+  Map<String, dynamic>? _selectedRecord;
+  String _ncbiDb = 'protein';
+  bool _isSearching = false;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +50,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
   void dispose() {
     _proteinController.dispose();
     _dnaController.dispose();
+    _ncbiController.dispose();
     super.dispose();
   }
 
@@ -154,13 +162,88 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
     setState(() {
       _proteinController.clear();
       _dnaController.clear();
+      _ncbiController.clear();
       _proteinResult = null;
       _proteinError = null;
       _dnaResult = null;
       _dnaError = null;
+      _ncbiResults = [];
+      _selectedRecord = null;
       _status = _AnalysisStatus.idle;
       _statusMessage = 'Ready for new sequences.';
     });
+  }
+
+  Future<void> _searchNCBI() async {
+    final query = _ncbiController.text.trim();
+    if (query.isEmpty) return;
+
+    setState(() {
+      _isSearching = true;
+      _ncbiResults = [];
+      _selectedRecord = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Searching NCBI...')),
+    );
+
+    try {
+      final results = await _bridge.ncbiSearch(query, db: _ncbiDb);
+      setState(() {
+        _ncbiResults = results;
+        _isSearching = false;
+        if (results.isEmpty) {
+          _statusMessage = 'No results found.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No results found.')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Found ${results.length} results.')),
+          );
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isSearching = false;
+        _statusMessage = 'Search failing: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Search failed: $e'), backgroundColor: Colors.red),
+        );
+      });
+    }
+  }
+
+  Future<void> _fetchAndAnalyze(String id) async {
+    setState(() {
+      _isSearching = true;
+      _selectedRecord = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Fetching record $id...')),
+    );
+
+    try {
+      final record = await _bridge.ncbiFetch(id, db: _ncbiDb);
+      setState(() {
+        _selectedRecord = record;
+        _isSearching = false;
+        _statusMessage = 'Fetched and analyzed record: $id';
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Analysis complete!')),
+        );
+      });
+    } catch (e) {
+      setState(() {
+        _isSearching = false;
+        _statusMessage = 'Fetch failing: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fetch failed: $e'), backgroundColor: Colors.red),
+        );
+      });
+    }
   }
 
   @override
@@ -290,6 +373,61 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                     _DnaResultCard(result: _dnaResult!),
                   ],
                   const SizedBox(height: 32),
+                  // NCBI Search Section
+                  const _SectionHeader(title: 'NCBI Database Search'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SequenceInputField(
+                          label: 'Search NCBI',
+                          controller: _ncbiController,
+                          hint: 'Search for proteins/genes (e.g., insulin)',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: _ncbiDb,
+                        onChanged: (String? newValue) {
+                          if (newValue != null) setState(() => _ncbiDb = newValue);
+                        },
+                        items: const [
+                          DropdownMenuItem(value: 'protein', child: Text('Protein')),
+                          DropdownMenuItem(value: 'nucleotide', child: Text('DNA/RNA')),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _isSearching ? null : _searchNCBI,
+                    icon: _isSearching 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.search),
+                    label: const Text('Search NCBI'),
+                  ),
+                  if (_ncbiResults.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _ncbiResults.length,
+                      itemBuilder: (context, index) {
+                        final res = _ncbiResults[index];
+                        return ListTile(
+                          title: Text(res['title'], maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text('ID: ${res['id']}'),
+                          trailing: const Icon(Icons.analytics_outlined),
+                          onTap: () => _fetchAndAnalyze(res['id']),
+                        );
+                      },
+                    ),
+                  ],
+                  if (_selectedRecord != null) ...[
+                    const SizedBox(height: 16),
+                    _NcbiRecordCard(record: _selectedRecord!),
+                  ],
+                  const SizedBox(height: 48),
                 ],
               ),
             ),
@@ -545,6 +683,53 @@ class _DnaResultCard extends StatelessWidget {
                     )
                     .toList(),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NcbiRecordCard extends StatelessWidget {
+  const _NcbiRecordCard({required this.record});
+  final Map<String, dynamic> record;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final analysis = record['analysis'] as Map<String, dynamic>;
+    final type = analysis['type'];
+
+    return Card(
+      elevation: 4,
+      color: theme.colorScheme.secondaryContainer,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'NCBI Record Analysis',
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(record['description'], style: theme.textTheme.bodySmall),
+            const Divider(),
+            if (type == 'protein') ...[
+              _ResultRow(label: 'MW', value: '${analysis['molecular_weight']} Da'),
+              _ResultRow(label: 'pI', value: '${analysis['isoelectric_point']}'),
+              _ResultRow(label: 'GRAVY', value: '${analysis['gravy']}'),
+            ] else ...[
+              _ResultRow(label: 'GC Content', value: '${analysis['gc_content']}%'),
+              _ResultRow(label: 'Length', value: '${analysis['length']} bp'),
+            ],
+            const SizedBox(height: 12),
+            const Text('Sequence (First 100 bp/aa):', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              record['sequence'].toString().substring(0, record['sequence'].toString().length > 100 ? 100 : record['sequence'].toString().length) + '...',
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
             ),
           ],
         ),
