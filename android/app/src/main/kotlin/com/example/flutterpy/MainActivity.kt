@@ -1,4 +1,4 @@
-package com.example.flutterpy
+package com.akdev.biopy
 
 import android.content.ContentValues
 import android.os.Build
