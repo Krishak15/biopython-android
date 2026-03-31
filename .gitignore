@@ -1,0 +1,5 @@
+
+**/doc/api/
+.dart_tool/
+.fvm/
+build/

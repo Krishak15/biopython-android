@@ -1,0 +1,6 @@
+{
+  "dart.flutterSdkPath": ".fvm/versions/3.38.4",
+  "python.analysis.extraPaths": [
+    "./build/app/python/pip/debug/common"
+  ]
+}
