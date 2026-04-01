@@ -40,6 +40,7 @@ class MainActivity : FlutterActivity() {
                     "dnaClassify" -> handleDnaClassify(call, result)
                     "ncbiSearch" -> handleNcbiSearch(call, result)
                     "ncbiFetch" -> handleNcbiFetch(call, result)
+                    "ncbiAnalyzeLocal" -> handleNcbiAnalyzeLocal(call, result)
                     else -> result.notImplemented()
                 }
             }
@@ -141,11 +142,12 @@ class MainActivity : FlutterActivity() {
     private fun handleNcbiSearch(call: MethodCall, result: MethodChannel.Result) {
         val query = call.argument<String>("query") ?: ""
         val db = call.argument<String>("db") ?: "protein"
-        Log.d(TAG, "handleNcbiSearch: start query=$query db=$db")
+        val retmax = call.argument<Int>("retmax") ?: 10
+        Log.d(TAG, "handleNcbiSearch: start query=$query db=$db retmax=$retmax")
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 val module = Python.getInstance().getModule("ncbi_service")
-                val jsonResult = module.callAttr("search_ncbi", query, db).toString()
+                val jsonResult = module.callAttr("search_ncbi", query, db, retmax).toString()
                 Log.d(TAG, "handleNcbiSearch: success")
                 withContext(Dispatchers.Main) { result.success(jsonResult) }
             } catch (e: Exception) {
@@ -168,6 +170,23 @@ class MainActivity : FlutterActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "handleNcbiFetch error", e)
                 withContext(Dispatchers.Main) { result.error("NCBI_FETCH_ERROR", e.message, null) }
+            }
+        }
+    }
+
+    private fun handleNcbiAnalyzeLocal(call: MethodCall, result: MethodChannel.Result) {
+        val sequence = call.argument<String>("sequence") ?: ""
+        val db = call.argument<String>("db") ?: "protein"
+        Log.d(TAG, "handleNcbiAnalyzeLocal: start sequence_length=${sequence.length} db=$db")
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val module = Python.getInstance().getModule("ncbi_service")
+                val jsonResult = module.callAttr("analyze_sequence_only", sequence, db).toString()
+                Log.d(TAG, "handleNcbiAnalyzeLocal: success")
+                withContext(Dispatchers.Main) { result.success(jsonResult) }
+            } catch (e: Exception) {
+                Log.e(TAG, "handleNcbiAnalyzeLocal error", e)
+                withContext(Dispatchers.Main) { result.error("NCBI_ANALYZE_ERROR", e.message, null) }
             }
         }
     }

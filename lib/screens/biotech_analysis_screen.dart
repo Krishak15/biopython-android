@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/biology_bridge_exception.dart';
+import 'ncbi_search_results_screen.dart';
 
 enum _AnalysisStatus { idle, ready, processing, error }
 
@@ -33,10 +34,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
   String? _dnaError;
   int _kmerSize = 3;
 
-  // NCBI search results
   final _ncbiController = TextEditingController();
-  List<Map<String, dynamic>> _ncbiResults = [];
-  Map<String, dynamic>? _selectedRecord;
   String _ncbiDb = 'protein';
   bool _isSearching = false;
 
@@ -166,9 +164,6 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
       _proteinResult = null;
       _proteinError = null;
       _dnaResult = null;
-      _dnaError = null;
-      _ncbiResults = [];
-      _selectedRecord = null;
       _status = _AnalysisStatus.idle;
       _statusMessage = 'Ready for new sequences.';
     });
@@ -180,8 +175,6 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
 
     setState(() {
       _isSearching = true;
-      _ncbiResults = [];
-      _selectedRecord = null;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -190,8 +183,9 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
 
     try {
       final results = await _bridge.ncbiSearch(query, db: _ncbiDb);
+      if (!mounted) return;
+
       setState(() {
-        _ncbiResults = results;
         _isSearching = false;
         if (results.isEmpty) {
           _statusMessage = 'No results found.';
@@ -199,8 +193,15 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
             const SnackBar(content: Text('No results found.')),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Found ${results.length} results.')),
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NcbiSearchResultsScreen(
+                results: results,
+                query: query,
+                db: _ncbiDb,
+              ),
+            ),
           );
         }
       });
@@ -215,36 +216,6 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
     }
   }
 
-  Future<void> _fetchAndAnalyze(String id) async {
-    setState(() {
-      _isSearching = true;
-      _selectedRecord = null;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Fetching record $id...')),
-    );
-
-    try {
-      final record = await _bridge.ncbiFetch(id, db: _ncbiDb);
-      setState(() {
-        _selectedRecord = record;
-        _isSearching = false;
-        _statusMessage = 'Fetched and analyzed record: $id';
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Analysis complete!')),
-        );
-      });
-    } catch (e) {
-      setState(() {
-        _isSearching = false;
-        _statusMessage = 'Fetch failing: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fetch failed: $e'), backgroundColor: Colors.red),
-        );
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -320,7 +291,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                   ),
                   if (_proteinResult != null) ...[
                     const SizedBox(height: 16),
-                    _ProteinResultCard(result: _proteinResult!),
+                    ProteinResultCard(result: _proteinResult!),
                   ],
                   const SizedBox(height: 32),
                   // DNA Classification Section
@@ -370,7 +341,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                   ),
                   if (_dnaResult != null) ...[
                     const SizedBox(height: 16),
-                    _DnaResultCard(result: _dnaResult!),
+                    DnaResultCard(result: _dnaResult!),
                   ],
                   const SizedBox(height: 32),
                   // NCBI Search Section
@@ -406,27 +377,6 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                         : const Icon(Icons.search),
                     label: const Text('Search NCBI'),
                   ),
-                  if (_ncbiResults.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _ncbiResults.length,
-                      itemBuilder: (context, index) {
-                        final res = _ncbiResults[index];
-                        return ListTile(
-                          title: Text(res['title'], maxLines: 1, overflow: TextOverflow.ellipsis),
-                          subtitle: Text('ID: ${res['id']}'),
-                          trailing: const Icon(Icons.analytics_outlined),
-                          onTap: () => _fetchAndAnalyze(res['id']),
-                        );
-                      },
-                    ),
-                  ],
-                  if (_selectedRecord != null) ...[
-                    const SizedBox(height: 16),
-                    _NcbiRecordCard(record: _selectedRecord!),
-                  ],
                   const SizedBox(height: 48),
                 ],
               ),
@@ -533,8 +483,8 @@ class _SequenceInputField extends StatelessWidget {
   );
 }
 
-class _ProteinResultCard extends StatelessWidget {
-  const _ProteinResultCard({required this.result});
+class ProteinResultCard extends StatelessWidget {
+  const ProteinResultCard({required this.result});
 
   final ProteinAnalysisResult result;
 
@@ -557,37 +507,37 @@ class _ProteinResultCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _ResultRow(
+            ResultRow(
               label: 'Molecular Weight',
               value: '${result.molecularWeight} Da',
             ),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'Isoelectric Point',
               value: '${result.isoelectricPoint} pH',
             ),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'Aromaticity',
               value: result.aromaticity.toStringAsFixed(3),
             ),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'Instability Index',
               value: result.instabilityIndex.toStringAsFixed(2),
             ),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'GRAVY',
               value: result.gravy.toStringAsFixed(3),
             ),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'Secondary Structure (Helix/Turn/Sheet)',
               value: '${(result.secondaryStructureFraction[0] * 100).toStringAsFixed(1)}% / ${(result.secondaryStructureFraction[1] * 100).toStringAsFixed(1)}% / ${(result.secondaryStructureFraction[2] * 100).toStringAsFixed(1)}%',
             ),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'Molar Extinction (Reduced/Oxidized)',
               value: '${result.molarExtinctionCoefficient[0]} / ${result.molarExtinctionCoefficient[1]} M⁻¹cm⁻¹',
             ),
@@ -613,8 +563,8 @@ class _ProteinResultCard extends StatelessWidget {
   }
 }
 
-class _DnaResultCard extends StatelessWidget {
-  const _DnaResultCard({required this.result});
+class DnaResultCard extends StatelessWidget {
+  const DnaResultCard({required this.result});
 
   final DnaClassificationResult result;
 
@@ -641,19 +591,19 @@ class _DnaResultCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _ResultRow(
+            ResultRow(
               label: 'Sequence Length',
               value: '${result.sequenceLength} bp',
             ),
             const SizedBox(height: 8),
-            _ResultRow(label: 'K-mer Size', value: '${result.kmerSize}-mers'),
+            ResultRow(label: 'K-mer Size', value: '${result.kmerSize}-mers'),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'Total K-mers Found',
               value: result.totalKmers.toString(),
             ),
             const SizedBox(height: 8),
-            _ResultRow(
+            ResultRow(
               label: 'Unique K-mers',
               value: result.frequencies.length.toString(),
             ),
@@ -691,55 +641,10 @@ class _DnaResultCard extends StatelessWidget {
   }
 }
 
-class _NcbiRecordCard extends StatelessWidget {
-  const _NcbiRecordCard({required this.record});
-  final Map<String, dynamic> record;
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final analysis = record['analysis'] as Map<String, dynamic>;
-    final type = analysis['type'];
 
-    return Card(
-      elevation: 4,
-      color: theme.colorScheme.secondaryContainer,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'NCBI Record Analysis',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(record['description'], style: theme.textTheme.bodySmall),
-            const Divider(),
-            if (type == 'protein') ...[
-              _ResultRow(label: 'MW', value: '${analysis['molecular_weight']} Da'),
-              _ResultRow(label: 'pI', value: '${analysis['isoelectric_point']}'),
-              _ResultRow(label: 'GRAVY', value: '${analysis['gravy']}'),
-            ] else ...[
-              _ResultRow(label: 'GC Content', value: '${analysis['gc_content']}%'),
-              _ResultRow(label: 'Length', value: '${analysis['length']} bp'),
-            ],
-            const SizedBox(height: 12),
-            const Text('Sequence (First 100 bp/aa):', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(
-              record['sequence'].toString().substring(0, record['sequence'].toString().length > 100 ? 100 : record['sequence'].toString().length) + '...',
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ResultRow extends StatelessWidget {
-  const _ResultRow({required this.label, required this.value});
+class ResultRow extends StatelessWidget {
+  const ResultRow({required this.label, required this.value});
 
   final String label;
   final String value;

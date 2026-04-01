@@ -247,9 +247,13 @@ class PythonImageBridge {
   Future<Map<String, dynamic>> healthCheck() => healthBiology();
 
   /// Search NCBI database (e.g., protein, nucleotide)
-  Future<List<Map<String, dynamic>>> ncbiSearch(String query, {String db = 'protein'}) async {
+  Future<List<Map<String, dynamic>>> ncbiSearch(String query, {String db = 'protein', int retmax = 50}) async {
     try {
-      final String? raw = await _channel.invokeMethod('ncbiSearch', {'query': query, 'db': db});
+      final String? raw = await _channel.invokeMethod('ncbiSearch', {
+        'query': query,
+        'db': db,
+        'retmax': retmax,
+      });
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       if (jsonMap['status'] == 'success') {
         return List<Map<String, dynamic>>.from(jsonMap['results'] as List);
@@ -269,6 +273,20 @@ class PythonImageBridge {
         return jsonMap;
       }
       throw BiologyBridgeException(jsonMap['message'] as String? ?? 'Fetch failed');
+    } catch (e) {
+      throw BiologyBridgeException(e.toString());
+    }
+  }
+
+  /// Re-analyze a sequence locally (without NCBI fetch)
+  Future<Map<String, dynamic>> ncbiAnalyzeLocal(String sequence, {String db = 'protein'}) async {
+    try {
+      final String? raw = await _channel.invokeMethod('ncbiAnalyzeLocal', {'sequence': sequence, 'db': db});
+      final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
+      if (jsonMap['status'] == 'success') {
+        return jsonMap;
+      }
+      throw BiologyBridgeException(jsonMap['message'] as String? ?? 'Local analysis failed');
     } catch (e) {
       throw BiologyBridgeException(e.toString());
     }

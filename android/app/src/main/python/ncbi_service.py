@@ -102,11 +102,38 @@ def fetch_and_analyze(uid, db="protein"):
 
         _log(f"Got sequence: {description[:60]}... len={len(sequence)}")
 
+        analysis_json = analyze_sequence_only(sequence, db)
+        analysis_dict = json.loads(analysis_json)
+        
+        if analysis_dict.get("status") == "error":
+            return json.dumps({
+                "status": "error",
+                "message": analysis_dict.get("message", "Analysis failed"),
+            })
+
+        return json.dumps({
+            "status": "success",
+            "id": uid,
+            "description": description,
+            "sequence": sequence,
+            "analysis": analysis_dict.get("analysis", {}),
+        })
+
+    except Exception as e:
+        _log(f"fetch_and_analyze error: {e}")
+        return json.dumps({"status": "error", "message": str(e)})
+
+
+def analyze_sequence_only(sequence: str, db: str = "protein") -> str:
+    """
+    Analyze a sequence (protein or dna) without fetching from NCBI.
+    Returns JSON with analysis results.
+    """
+    try:
         is_protein = (db == "protein")
         analysis = {}
 
         if is_protein:
-            # ProtParam is pure Python — no C-extensions
             from Bio.SeqUtils.ProtParam import ProteinAnalysis
 
             clean_seq = sequence.upper().replace("X", "").replace("*", "")
@@ -117,6 +144,10 @@ def fetch_and_analyze(uid, db="protein"):
                 })
 
             analyzer = ProteinAnalysis(clean_seq)
+            sec_struct = analyzer.secondary_structure_fraction()
+            molar_ext = analyzer.molar_extinction_coefficient()
+            amino_counts = analyzer.count_amino_acids()
+            
             analysis = {
                 "type": "protein",
                 "molecular_weight": round(analyzer.molecular_weight(), 2),
@@ -125,29 +156,30 @@ def fetch_and_analyze(uid, db="protein"):
                 "aromaticity": round(analyzer.aromaticity(), 4),
                 "instability_index": round(analyzer.instability_index(), 2),
                 "length": len(clean_seq),
+                "secondary_structure_fraction": [round(x, 4) for x in sec_struct],
+                "molar_extinction_coefficient": list(molar_ext),
+                "amino_acid_counts": amino_counts,
             }
         else:
-            # Manual GC content calculation — no Bio.SeqUtils.gc_fraction
-            upper_seq = sequence.upper()
-            gc_count = upper_seq.count("G") + upper_seq.count("C")
-            total = len(upper_seq)
-            gc_content = round((gc_count / total) * 100, 2) if total else 0.0
+            import dna_classifier
+            dna_json = dna_classifier.get_kmer_frequencies(sequence, 3)
+            dna_dict = json.loads(dna_json)
+            
+            if dna_dict.get("status") == "error":
+                return json.dumps({"status": "error", "message": dna_dict.get("message", "DNA analysis failed")})
 
             analysis = {
                 "type": "dna",
-                "gc_content": gc_content,
-                "length": total,
-                "at_content": round(100.0 - gc_content, 2),
+                "kmer_size": dna_dict.get("kmer_size"),
+                "sequence_length": dna_dict.get("sequence_length"),
+                "frequencies": dna_dict.get("frequencies"),
+                "total_kmers": dna_dict.get("total_kmers"),
             }
 
         return json.dumps({
             "status": "success",
-            "id": uid,
-            "description": description,
-            "sequence": sequence,
             "analysis": analysis,
         })
-
     except Exception as e:
-        _log(f"fetch_and_analyze error: {e}")
+        _log(f"analyze_sequence_only error: {e}")
         return json.dumps({"status": "error", "message": str(e)})
