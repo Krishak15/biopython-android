@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'theme/app_theme.dart';
 import 'screens/biotech_analysis_screen.dart';
 
 void main() {
@@ -13,10 +14,7 @@ class BioTechApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: 'BioPy',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.darkTheme,
         home: const BiotechAnalysisScreen(),
       );
 }
