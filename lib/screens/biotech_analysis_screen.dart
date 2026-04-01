@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../services/biology_platform_bridge.dart';
 import '../providers/analysis_hub_provider.dart';
+import '../theme/app_theme.dart';
 
 class BiotechAnalysisScreen extends StatefulWidget {
   const BiotechAnalysisScreen({super.key});
@@ -15,13 +17,41 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
   final _proteinController = TextEditingController();
   final _dnaController = TextEditingController();
   final _ncbiController = TextEditingController();
+  final _scrollController = ScrollController();
   String _ncbiDb = 'protein';
 
   @override
+  void initState() {
+    super.initState();
+    // Listen to provider to auto-scroll when analysis completes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AnalysisHubProvider>().addListener(_onProviderChange);
+    });
+  }
+
+  void _onProviderChange() {
+    if (!mounted) return;
+    final provider = context.read<AnalysisHubProvider>();
+    if (provider.proteinResult != null || provider.dnaResult != null) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeOutQuart,
+          );
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
+    context.read<AnalysisHubProvider>().removeListener(_onProviderChange);
     _proteinController.dispose();
     _dnaController.dispose();
     _ncbiController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -34,7 +64,26 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Analysis Hub'),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppTheme.primary, AppTheme.secondary],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.biotech,
+                color: theme.colorScheme.onPrimary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('BioPulse'),
+          ],
+        ),
         actions: [
           _StatusDot(status: status),
           const SizedBox(width: 8),
@@ -55,195 +104,259 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
         ],
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [
-              theme.colorScheme.surface.withValues(alpha: 0.9),
-              theme.colorScheme.surfaceContainerLow,
-            ],
-            stops: const [0.0, 0.7],
-          ),
-        ),
+        decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             children: [
-              if (provider.statusMessage != null)
-                Text(
-                  provider.statusMessage!.toUpperCase(),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: status == AnalysisStatus.error
-                        ? theme.colorScheme.error
-                        : theme.colorScheme.primary,
-                    letterSpacing: 1.5,
+              // Hero Section
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Workspace Alpha-9'.toUpperCase(),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 3.0,
+                    ),
                   ),
-                ),
-              const SizedBox(height: 32),
-
-              // Protein Analysis Card
-              _buildAnalysisCard(
-                theme,
-                title: 'Protein Analysis',
-                description:
-                    'Determine molecular weight, aromaticity, and GRAVY index from primary sequence data.',
-                form: _SequenceInputField(
-                  label: 'Peptide Input',
-                  controller: _proteinController,
-                  hint: 'Ex: MKTAYIAKQRQIS...',
-                  error: provider.proteinError,
-                ),
-                action: _GradientButton(
-                  label: 'Execute Diagnostics',
-                  onPressed: status != AnalysisStatus.processing
-                      ? () => provider.analyzeProtein(
-                          _proteinController.text.trim(),
-                        )
-                      : null,
-                  theme: theme,
-                ),
-                result: provider.proteinResult != null
-                    ? ProteinResultCard(result: provider.proteinResult!)
-                    : null,
+                  const SizedBox(height: 12),
+                  Text(
+                    'Genomic Intelligence Center.',
+                    style: theme.textTheme.displayMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Integrated analytical suite for high-throughput protein modeling, DNA k-mer classification, and multi-omics data retrieval.',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 48),
 
-              const SizedBox(height: 24),
-
-              // DNA Classification Card
-              _buildAnalysisCard(
-                theme,
-                title: 'Classification Analysis',
-                description:
-                    'Extract K-mer frequency topologies from genomic strings.',
-                form: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // Protein Section (Main Bento Card)
+              _BentoCard(
+                theme: theme,
+                accentColor: AppTheme.primary,
+                icon: Icons.hexagon_outlined,
+                title: 'Proteomics Workbench',
+                subtitle: 'FASTA Source / Raw Chain',
+                child: Column(
                   children: [
                     _SequenceInputField(
-                      label: 'Nucleotide String',
-                      controller: _dnaController,
-                      hint: 'Ex: AGCTAGCTAGC...',
-                      error: provider.dnaError,
+                      label: 'PEPTIDE INPUT',
+                      controller: _proteinController,
+                      hint: 'Ex: MFVFLVLLPLVSSQCVNLTTR...',
+                      error: provider.proteinError,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     Row(
                       children: [
-                        Text('K-mer Scale:', style: theme.textTheme.labelLarge),
                         Expanded(
-                          child: Slider(
-                            value: provider.kmerSize.toDouble(),
-                            min: 1,
-                            max: 6,
-                            divisions: 5,
-                            activeColor: theme.colorScheme.secondary,
-                            inactiveColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                            label: '${provider.kmerSize} bp',
-                            onChanged: (v) => provider.setKmerSize(v.toInt()),
+                          flex: 2,
+                          child: _GradientButton(
+                            label: 'EXECUTE ANALYSIS',
+                            onPressed: status != AnalysisStatus.processing
+                                ? () => provider.analyzeProtein(
+                                    _proteinController.text.trim(),
+                                  )
+                                : null,
+                            theme: theme,
                           ),
                         ),
-                        Text(
-                          '${provider.kmerSize}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontFamily: 'Manrope',
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SecondaryButton(
+                            label: 'RESET',
+                            onPressed: _proteinController.clear,
+                            theme: theme,
                           ),
                         ),
                       ],
                     ),
                   ],
                 ),
-                action: _GradientButton(
-                  label: 'Engage Clustering',
-                  onPressed: status != AnalysisStatus.processing
-                      ? () => provider.classifyDna(_dnaController.text.trim())
-                      : null,
-                  theme: theme,
-                  isSecondary: true,
-                ),
-                result: provider.dnaResult != null
-                    ? DnaResultCard(result: provider.dnaResult!)
-                    : null,
               ),
 
               const SizedBox(height: 24),
 
-              // NCBI Search Card
-              _buildAnalysisCard(
-                theme,
-                title: 'Global Repository Search',
-                description:
-                    'Query NCBI databases directly for protein or nucleotide records.',
-                form: Row(
+              // DNA Section
+              _BentoCard(
+                theme: theme,
+                accentColor: AppTheme.secondary,
+                icon: Icons.grain_outlined,
+                title: 'K-mer Logic',
+                subtitle: 'K-Length Parameter',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      flex: 2,
-                      child: _SequenceInputField(
-                        label: 'Query Term',
-                        controller: _ncbiController,
-                        hint: 'Ex: Human Insulin',
-                        height: 60,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 1,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.colorScheme.outlineVariant.withValues(
-                              alpha: 0.15,
-                            ),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.1,
                           ),
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _ncbiDb,
-                            isExpanded: true,
-                            dropdownColor:
-                                theme.colorScheme.surfaceContainerHigh,
-                            icon: Icon(
-                              Icons.arrow_drop_down,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            onChanged: (v) {
-                              if (v != null) {
-                                setState(() => _ncbiDb = v);
-                              }
-                            },
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'protein',
-                                child: Text('Protein'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'nucleotide',
-                                child: Text('DNA/RNA'),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('SCALE', style: theme.textTheme.labelSmall),
+                              Text(
+                                'k=${provider.kmerSize}',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: AppTheme.secondary,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ],
                           ),
+                          Slider(
+                            value: provider.kmerSize.toDouble(),
+                            min: 1,
+                            max: 12,
+                            divisions: 11,
+                            activeColor: AppTheme.secondary,
+                            inactiveColor:
+                                theme.colorScheme.surfaceContainerHighest,
+                            onChanged: (v) => provider.setKmerSize(v.toInt()),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _SequenceInputField(
+                      label: 'NUCLEOTIDE STRING',
+                      controller: _dnaController,
+                      hint: 'Ex: AGCTAGCTAGC...',
+                      error: provider.dnaError,
+                    ),
+                    const SizedBox(height: 24),
+                    _GradientButton(
+                      label: 'PROCESS FRAGMENTS',
+                      onPressed: status != AnalysisStatus.processing
+                          ? () =>
+                                provider.classifyDna(_dnaController.text.trim())
+                          : null,
+                      theme: theme,
+                      isSecondary: true,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // NCBI Search (Full Width)
+              _BentoCard(
+                theme: theme,
+                accentColor: AppTheme.tertiary,
+                icon: Icons.storage_outlined,
+                title: 'Entrez Query Engine',
+                subtitle: 'Database Selection',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant
+                                    .withValues(alpha: 0.1),
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _ncbiDb,
+                                isExpanded: true,
+                                dropdownColor:
+                                    theme.colorScheme.surfaceContainerHigh,
+                                icon: const Icon(Icons.expand_more, size: 20),
+                                onChanged: (v) => v != null
+                                    ? setState(() => _ncbiDb = v)
+                                    : null,
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'protein',
+                                    child: Text('Protein Archive'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'nucleotide',
+                                    child: Text('Nucleotide Database'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _ncbiController,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        hintText: 'Accession number, DOI, or term...',
+                        suffixIcon: IconButton(
+                          onPressed: provider.isSearching
+                              ? null
+                              : () => provider.searchNCBI(
+                                  context,
+                                  _ncbiController.text.trim(),
+                                  _ncbiDb,
+                                ),
+                          icon: provider.isSearching
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.cloud_download_outlined),
+                          color: AppTheme.tertiary,
                         ),
                       ),
                     ),
                   ],
                 ),
-                action: _GradientButton(
-                  label: 'Transmit Query',
-                  onPressed: provider.isSearching
-                      ? null
-                      : () => provider.searchNCBI(
-                          context,
-                          _ncbiController.text.trim(),
-                          _ncbiDb,
-                        ),
-                  theme: theme,
-                  icon: provider.isSearching ? Icons.sync : Icons.radar,
-                ),
               ),
 
               const SizedBox(height: 64),
+
+              // Results Display
+              if (provider.proteinResult != null) ...[
+                _ResultHero(
+                  theme: theme,
+                  title: 'Analysis Results',
+                  child: ProteinResultCard(result: provider.proteinResult!),
+                ),
+                const SizedBox(height: 48),
+              ],
+
+              if (provider.dnaResult != null) ...[
+                _ResultHero(
+                  theme: theme,
+                  title: 'Cluster Yield',
+                  child: DnaResultCard(result: provider.dnaResult!),
+                ),
+                const SizedBox(height: 48),
+              ],
             ],
           ),
         ),
@@ -251,18 +364,21 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
     );
   }
 
-  Widget _buildAnalysisCard(
-    ThemeData theme, {
+  Widget _BentoCard({
+    required ThemeData theme,
+    required Color accentColor,
+    required IconData icon,
     required String title,
-    required String description,
-    required Widget form,
-    required Widget action,
-    Widget? result,
+    required String subtitle,
+    required Widget child,
   }) => Container(
-    padding: const EdgeInsets.all(24),
+    padding: const EdgeInsets.all(28),
     decoration: BoxDecoration(
-      color: theme.colorScheme.surfaceContainerHigh,
+      color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
       borderRadius: BorderRadius.circular(24),
+      border: Border.all(
+        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1),
+      ),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.2),
@@ -274,16 +390,70 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: theme.textTheme.headlineMedium),
-        const SizedBox(height: 8),
-        Text(description, style: theme.textTheme.bodyMedium),
-        const SizedBox(height: 24),
-        form,
-        const SizedBox(height: 24),
-        SizedBox(width: double.infinity, child: action),
-        if (result != null) ...[const SizedBox(height: 24), result],
+        Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: accentColor),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleLarge),
+                Text(subtitle.toUpperCase(), style: theme.textTheme.labelSmall),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+        child,
       ],
     ),
+  );
+}
+
+class _ResultHero extends StatelessWidget {
+  const _ResultHero({
+    required this.theme,
+    required this.title,
+    required this.child,
+  });
+  final ThemeData theme;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Text(title, style: theme.textTheme.headlineMedium),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Container(
+              height: 1,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 24),
+      child,
+    ],
   );
 }
 
@@ -293,29 +463,33 @@ class _GradientButton extends StatelessWidget {
     required this.onPressed,
     required this.theme,
     this.isSecondary = false,
-    this.icon,
   });
 
   final String label;
   final VoidCallback? onPressed;
   final ThemeData theme;
   final bool isSecondary;
-  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
-    final colors = isSecondary
-        ? [theme.colorScheme.secondary, theme.colorScheme.secondaryContainer]
-        : [theme.colorScheme.primary, theme.colorScheme.primaryContainer];
+    final disabled = onPressed == null;
+    final activeColors = isSecondary
+        ? const [AppTheme.secondary, AppTheme.secondaryContainer]
+        : const [AppTheme.primary, AppTheme.primaryContainer];
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
       height: 56,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        gradient: onPressed == null ? null : LinearGradient(colors: colors),
-        color: onPressed == null
-            ? theme.colorScheme.surfaceContainerHighest
-            : null,
+        gradient: disabled
+            ? null
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: activeColors,
+              ),
+        color: disabled ? theme.colorScheme.surfaceContainerHighest : null,
       ),
       child: Material(
         color: Colors.transparent,
@@ -323,28 +497,58 @@ class _GradientButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           onTap: onPressed,
           child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                ],
-                Text(
-                  label,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: onPressed == null
-                        ? theme.colorScheme.onSurfaceVariant
-                        : Colors.white,
-                  ),
-                ),
-              ],
+            child: Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: disabled
+                    ? theme.colorScheme.onSurfaceVariant
+                    : Colors.black87,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+class _SecondaryButton extends StatelessWidget {
+  const _SecondaryButton({
+    required this.label,
+    required this.onPressed,
+    required this.theme,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 56,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(999),
+      color: theme.colorScheme.surfaceContainerHighest,
+      border: Border.all(color: AppTheme.primary.withValues(alpha: 0.1)),
+    ),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onPressed,
+        child: Center(
+          child: Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: AppTheme.primary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _StatusDot extends StatelessWidget {
@@ -381,33 +585,39 @@ class _SequenceInputField extends StatelessWidget {
     required this.controller,
     required this.hint,
     this.error,
-    this.height,
   });
 
   final String label;
   final TextEditingController controller;
   final String hint;
   final String? error;
-  final double? height;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: height,
-    child: TextField(
-      controller: controller,
-      maxLines: height == null ? 4 : 1,
-      style: const TextStyle(fontFamily: 'monospace'),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        errorText: error,
-        alignLabelWithHint: height == null,
-      ),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: theme.textTheme.labelSmall),
+        const SizedBox(height: 12),
+        TextField(
+          controller: controller,
+          maxLines: 4,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            color: AppTheme.primary,
+            fontSize: 14,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            errorText: error,
+            fillColor: Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
 }
-
-// Data Display Components matched to "The Ledger Style" (technical precision)
 
 class ResultRow extends StatelessWidget {
   const ResultRow({required this.label, required this.value, super.key});
@@ -417,23 +627,26 @@ class ResultRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            flex: 3,
-            child: Text(label, style: theme.textTheme.labelMedium),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 4,
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontFamily: 'monospace',
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label.toUpperCase(),
+                  style: theme.textTheme.labelSmall?.copyWith(fontSize: 9),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -450,72 +663,82 @@ class ProteinResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Diagnostics Yield',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.primary,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'DETAILED PROFILE',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppTheme.primary,
+                ),
+              ),
+              const Icon(
+                Icons.analytics_outlined,
+                color: AppTheme.primary,
+                size: 20,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 2.0,
+            children: [
+              ResultRow(
+                label: 'MW',
+                value: '${result.molecularWeight.toStringAsFixed(2)} Da',
+              ),
+              ResultRow(
+                label: 'pI',
+                value: result.isoelectricPoint.toStringAsFixed(2),
+              ),
+              ResultRow(
+                label: 'AROMATICITY',
+                value: result.aromaticity.toStringAsFixed(3),
+              ),
+              ResultRow(
+                label: 'INSTABILITY',
+                value: result.instabilityIndex.toStringAsFixed(2),
+              ),
+              ResultRow(label: 'GRAVY', value: result.gravy.toStringAsFixed(3)),
+            ],
           ),
           const SizedBox(height: 16),
-          ResultRow(label: 'MW', value: '${result.molecularWeight} Da'),
-          ResultRow(
-            label: 'Isoelectric Point',
-            value: '${result.isoelectricPoint} pH',
-          ),
-          ResultRow(
-            label: 'Aromaticity',
-            value: result.aromaticity.toStringAsFixed(3),
-          ),
-          ResultRow(label: 'GRAVY', value: result.gravy.toStringAsFixed(3)),
-          ResultRow(
-            label: 'Instability',
-            value: result.instabilityIndex.toStringAsFixed(2),
-          ),
-          ResultRow(
-            label: 'Secondary Structure (Helix/Turn/Sheet)',
+          _TechnicalSection(
+            theme: theme,
+            label: 'SECONDARY STRUCTURE FRACTION',
             value:
-                '${(result.secondaryStructureFraction[0] * 100).toStringAsFixed(1)}% / ${(result.secondaryStructureFraction[1] * 100).toStringAsFixed(1)}% / ${(result.secondaryStructureFraction[2] * 100).toStringAsFixed(1)}%',
+                'Helix: ${(result.secondaryStructureFraction[0] * 100).toStringAsFixed(1)}% | Turn: ${(result.secondaryStructureFraction[1] * 100).toStringAsFixed(1)}% | Sheet: ${(result.secondaryStructureFraction[2] * 100).toStringAsFixed(1)}%',
           ),
-          ResultRow(
-            label: 'Molar Extinction (Reduced/Oxidized)',
+          const SizedBox(height: 12),
+          _TechnicalSection(
+            theme: theme,
+            label: 'MOLAR EXTINCTION COEFFICIENT',
             value:
-                '${result.molarExtinctionCoefficient[0]} / ${result.molarExtinctionCoefficient[1]} M⁻¹cm⁻¹',
+                'Reduced: ${result.molarExtinctionCoefficient[0]} | Oxidized: ${result.molarExtinctionCoefficient[1]} M⁻¹cm⁻¹',
           ),
+          const SizedBox(height: 24),
+          Text('AMINO ACID COMPOSITION', style: theme.textTheme.labelSmall),
           const SizedBox(height: 16),
-          Text('Amino Acids', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: result.aminoAcidCounts.entries
                 .where((e) => e.value > 0)
-                .map(
-                  (e) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${e.key}: ${e.value}',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                )
+                .map((e) => _MetricBadge(label: e.key, value: '${e.value}'))
                 .toList(),
           ),
         ],
@@ -534,116 +757,212 @@ class DnaResultCard extends StatelessWidget {
     final topKmers =
         (result.frequencies.entries.toList()
               ..sort((a, b) => b.value.compareTo(a.value)))
-            .take(8)
+            .take(6)
             .toList();
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Cluster Yield',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.secondary,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'GENOMIC DIAGNOSTICS',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppTheme.secondary,
+                ),
+              ),
+              const Icon(
+                Icons.query_stats_outlined,
+                color: AppTheme.secondary,
+                size: 20,
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          ResultRow(label: 'Base Pairs', value: '${result.sequenceLength}'),
-          ResultRow(
-            label: 'GC Content',
-            value: '${result.gcContent.toStringAsFixed(1)}%',
-          ),
-          ResultRow(
-            label: 'Mol. Weight',
-            value: '${result.molecularWeight.toStringAsFixed(2)} Da',
-          ),
-          if (result.meltingTemp > 0)
-            ResultRow(
-              label: 'Melting Temp',
-              value: '${result.meltingTemp.toStringAsFixed(1)} °C',
-            ),
-          ResultRow(label: 'Total K-mers', value: '${result.totalKmers}'),
-          ResultRow(
-            label: 'Unique Nodes',
-            value: '${result.frequencies.length}',
-          ),
-          const SizedBox(height: 16),
-          Text('Primary Nodes', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 8),
-          GridView.builder(
+          const SizedBox(height: 24),
+          GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: topKmers.length,
-            itemBuilder: (context, i) {
-              final kmer = topKmers[i];
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      kmer.key,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 13,
-                      ),
-                    ),
-                    Text(
-                      '${kmer.value}',
-                      style: TextStyle(
-                        color: theme.colorScheme.secondary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+            crossAxisCount: 2,
+            childAspectRatio: 2.0,
+            children: [
+              ResultRow(label: 'BASE PAIRS', value: '${result.sequenceLength}'),
+              ResultRow(
+                label: 'GC CONTENT',
+                value: '${result.gcContent.toStringAsFixed(1)}%',
+              ),
+              ResultRow(
+                label: 'MOL. WEIGHT',
+                value:
+                    '${(result.molecularWeight / 1000).toStringAsFixed(2)} kDa',
+              ),
+              ResultRow(
+                label: 'MELTING TEMP',
+                value: '${result.meltingTemp.toStringAsFixed(1)} °C',
+              ),
+              ResultRow(label: 'TOTAL K-MERS', value: '${result.totalKmers}'),
+              ResultRow(
+                label: 'UNIQUE NODES',
+                value: '${result.frequencies.length}',
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
           if (result.reverseComplement.isNotEmpty) ...[
-            Text('Reverse Complement', style: theme.textTheme.labelLarge),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withValues(
-                    alpha: 0.15,
-                  ),
-                ),
-              ),
-              child: SelectableText(
-                result.reverseComplement,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
             const SizedBox(height: 16),
+            _TechnicalSection(
+              theme: theme,
+              label: 'REVERSE COMPLEMENT',
+              value: result.reverseComplement,
+              isMonospace: true,
+              onCopy: () {
+                Clipboard.setData(ClipboardData(text: result.reverseComplement));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Reverse complement copied')),
+                );
+              },
+            ),
           ],
+          const SizedBox(height: 24),
+          Text('PRIMARY K-MER NODES', style: theme.textTheme.labelSmall),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: topKmers
+                .map(
+                  (e) => _MetricBadge(
+                    label: e.key,
+                    value: '${e.value}',
+                    color: AppTheme.secondary,
+                  ),
+                )
+                .toList(),
+          ),
         ],
       ),
     );
   }
+}
+
+class _TechnicalSection extends StatelessWidget {
+  const _TechnicalSection({
+    required this.theme,
+    required this.label,
+    required this.value,
+    this.isMonospace = false,
+    this.onCopy,
+  });
+
+  final ThemeData theme;
+  final String label;
+  final String value;
+  final bool isMonospace;
+  final VoidCallback? onCopy;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.05),
+          ),
+        ),
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 8,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: EdgeInsets.only(right: onCopy != null ? 32 : 0),
+                  child: Text(
+                    value,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontFamily: isMonospace ? 'monospace' : null,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (onCopy != null)
+              Positioned(
+                right: -8,
+                top: -8,
+                child: IconButton(
+                  onPressed: onCopy,
+                  icon: const Icon(Icons.copy_rounded, size: 14),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ),
+          ],
+        ),
+      );
+}
+
+class _MetricBadge extends StatelessWidget {
+  const _MetricBadge({
+    required this.label,
+    required this.value,
+    this.color = AppTheme.primary,
+  });
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.05),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withValues(alpha: 0.1)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w900,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    ),
+  );
 }

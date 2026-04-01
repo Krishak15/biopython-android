@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/ncbi_search_provider.dart';
+import '../theme/app_theme.dart';
 
 class NcbiSearchResultsScreen extends StatelessWidget {
   const NcbiSearchResultsScreen({
@@ -67,136 +68,218 @@ class _NcbiSearchContentState extends State<_NcbiSearchContent> {
     final provider = context.watch<NcbiSearchProvider>();
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text('Query: ${widget.query}'),
-        centerTitle: false,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
+        title: const Text('Repository Results'),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(80),
+          preferredSize: const Size.fromHeight(100),
           child: Padding(
-            padding: const EdgeInsets.only(left: 24, right: 24, bottom: 24),
-            child: TextField(
-              controller: _filterController,
-              style: const TextStyle(fontFamily: 'Inter'),
-              decoration: InputDecoration(
-                hintText: 'Filter results...',
-                prefixIcon: const Icon(Icons.filter_list_rounded),
-                filled: true,
-                fillColor: Colors.black, // surfaceContainerLowest
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.tertiary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'QUERY: ${widget.query.toUpperCase()}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppTheme.tertiary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'DB: ${widget.db.toUpperCase()}',
+                        style: theme.textTheme.labelSmall,
+                      ),
+                    ),
+                  ],
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-              ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _filterController,
+                  decoration: InputDecoration(
+                    hintText: 'Filter results...',
+                    prefixIcon: const Icon(Icons.filter_list_rounded, size: 20),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
       body: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  theme.colorScheme.surface,
-                  theme.colorScheme.surfaceContainerLow,
-                ],
-              ),
-            ),
-          ),
-          if (provider.filteredResults.isEmpty)
-            Center(
-              child: Text(
-                'Null ResultSet',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  letterSpacing: 2,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            )
-          else
-            ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              itemCount: provider.filteredResults.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                final res = provider.filteredResults[index];
-                return InkWell(
-                  onTap: () => context
-                      .read<NcbiSearchProvider>()
-                      .fetchAndAnalyze(context, res['id'], widget.db),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(20),
+          SafeArea(
+            child: provider.filteredResults.isEmpty
+                ? Center(
+                    child: Text(
+                      'Null ResultSet',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        letterSpacing: 2,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          res['title'] ?? 'Uncatalogued Record',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainer,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                res['id'],
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 12,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 14,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                    itemCount: provider.filteredResults.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      final res = provider.filteredResults[index];
+                      return _RepositoryCard(
+                        theme: theme,
+                        id: res['id'],
+                        title: res['title'] ?? 'Uncatalogued Record',
+                        onTap: () => context
+                            .read<NcbiSearchProvider>()
+                            .fetchAndAnalyze(context, res['id'], widget.db),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-
+          ),
           if (provider.isFetching)
             Container(
               color: Colors.black.withValues(alpha: 0.6),
-              child: const Center(
-                child: SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.tertiary),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'FETCHING ACCESSION...',
+                      style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.tertiary),
+                    ),
+                  ],
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _RepositoryCard extends StatelessWidget {
+  const _RepositoryCard({
+    required this.theme,
+    required this.id,
+    required this.title,
+    required this.onTap,
+  });
+
+  final ThemeData theme;
+  final String id;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.greenAccent, size: 10),
+                          const SizedBox(width: 6),
+                          Text(
+                            'MATCH FOUND',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: Colors.greenAccent,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      id,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: AppTheme.tertiary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                     Text(
+                      'DECODE RECORD',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

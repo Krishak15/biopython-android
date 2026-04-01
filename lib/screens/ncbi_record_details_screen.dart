@@ -5,6 +5,7 @@ import 'dart:async';
 
 import '../services/biology_platform_bridge.dart';
 import '../providers/ncbi_record_provider.dart';
+import '../theme/app_theme.dart';
 import 'biotech_analysis_screen.dart';
 
 class NcbiRecordDetailsScreen extends StatelessWidget {
@@ -33,8 +34,6 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
   @override
   void initState() {
     super.initState();
-    // Initialize length controller text with max sequence length 
-    // Wait until build completes to grab provider sequence 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final prov = context.read<NcbiRecordProvider>();
@@ -88,110 +87,108 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Record Analysis'),
-        backgroundColor: Colors.transparent,
+        title: const Text('Accession Analysis'),
       ),
       body: Container(
-        height: double.infinity,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
-            colors: [
-              theme.colorScheme.surface.withValues(alpha: 0.8),
-              theme.colorScheme.surfaceContainerLow,
-            ],
-            stops: const [0.0, 0.4],
-          ),
+          color: theme.scaffoldBackgroundColor,
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                // Repository Metadata Hero
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        widget.record['id'] ?? 'Unknown',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.tertiary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'NCBI ACCESSION: ${widget.record['id'] ?? 'Unknown'}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: AppTheme.tertiary,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
                         ),
+                        const Spacer(),
+                        if (provider.isAnalyzing)
+                          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.record['description'] ?? 'Repository data stream active.',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w900,
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  widget.record['description'] ?? 'No metadata description available for this record.',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: theme.colorScheme.onSurface,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 48),
                 
                 // Calibration controls layer
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHigh,
+                    color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 40,
-                        spreadRadius: -4,
-                      ),
-                    ],
+                    border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Sequence Extent',
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          if (provider.isAnalyzing) 
-                            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                        ],
+                      Text(
+                        'SEQUENCE CALIBRATION',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2.0,
+                        ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       TextField(
                         controller: _lengthController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         onChanged: (v) => _onLengthChanged(v, context.read<NcbiRecordProvider>()),
-                        style: const TextStyle(fontFamily: 'monospace', fontSize: 18),
+                        style: const TextStyle(
+                          fontFamily: 'monospace', 
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.tertiary,
+                        ),
                         decoration: InputDecoration(
-                          labelText: 'Base Pairs (1 - ${provider.originalSequence.isNotEmpty ? provider.originalSequence.length : widget.record['sequence']?.length ?? 0})',
-                          fillColor: Colors.black, // surfaceContainerLowest
+                          labelText: 'SUB-FRAG LENGTH (MAX ${provider.originalSequence.length})',
+                          fillColor: Colors.black.withValues(alpha: 0.3),
                         ),
                       ),
                       if (provider.error != null) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         Text(
-                          'FAULT: ${provider.error}',
-                          style: TextStyle(color: theme.colorScheme.error, letterSpacing: 1),
+                          'SYSTEM FAULT: ${provider.error}',
+                          style: TextStyle(
+                            color: theme.colorScheme.error, 
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ],
                   ),
                 ),
-                const SizedBox(height: 32), // spacing-8
+                const SizedBox(height: 32),
 
                 // Results Layer
                 if (type == 'protein' && provider.currentAnalysis.isNotEmpty)
@@ -199,33 +196,53 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
                 else if (type == 'nucleotide' && provider.currentAnalysis.isNotEmpty)
                   DnaResultCard(result: DnaClassificationResult.fromJson(provider.currentAnalysis)),
                 
-                const SizedBox(height: 32),
+                const SizedBox(height: 48),
 
                 // Sequence Extractor Display
-                Text(
-                  'Primary Sequence Data',
-                  style: theme.textTheme.labelLarge?.copyWith(letterSpacing: 1.5),
+                Row(
+                  children: [
+                    Text(
+                      'PRIMARY DATA STREAM',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: provider.currentSequence));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Sequence copied to clipboard')),
+                        );
+                      },
+                      icon: const Icon(Icons.copy_rounded, size: 18),
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.black, // surfaceContainerLowest
-                    borderRadius: BorderRadius.circular(16),
+                    color: Colors.black.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1)),
                   ),
-                  child: SelectableText(
+                  child: Text(
                     provider.currentSequence,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontFamily: 'monospace', 
-                      fontSize: 13,
-                      height: 1.6,
-                      color: theme.colorScheme.onSurfaceVariant,
+                      fontFamily: 'monospace',
+                      fontSize: 14,
+                      height: 1.8,
+                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
                     ),
                   ),
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 64),
               ],
             ),
           ),

@@ -169,11 +169,15 @@ def analyze_sequence_only(sequence: str, db: str = "protein") -> str:
                 return json.dumps({"status": "error", "message": dna_dict.get("message", "DNA analysis failed")})
 
             analysis = {
-                "type": "dna",
+                "type": "nucleotide",
                 "kmer_size": dna_dict.get("kmer_size"),
                 "sequence_length": dna_dict.get("sequence_length"),
                 "frequencies": dna_dict.get("frequencies"),
                 "total_kmers": dna_dict.get("total_kmers"),
+                "gc_content": dna_dict.get("gc_content"),
+                "molecular_weight": dna_dict.get("molecular_weight"),
+                "melting_temp": dna_dict.get("melting_temp"),
+                "reverse_complement": dna_dict.get("reverse_complement"),
             }
 
         return json.dumps({
