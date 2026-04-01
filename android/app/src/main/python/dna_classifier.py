@@ -15,7 +15,7 @@ def _log(message):
     print(f"[dna_classifier] {message}", flush=True)
 
 
-def get_kmer_frequencies(sequence: str, k_size: int = 3) -> str:
+def get_kmer_frequencies(sequence: str, k_size: int = 3, limit: int = 100000) -> str:
     """
     Extract k-mer frequencies from a DNA sequence for ML classification.
 
@@ -49,6 +49,11 @@ def get_kmer_frequencies(sequence: str, k_size: int = 3) -> str:
         if not isinstance(k_size, int) or k_size < 1:
             raise ValueError(f"k_size must be a positive integer, got {k_size}")
 
+        original_length = len(sequence)
+        if original_length > limit:
+            _log(f"Truncating sequence from {original_length} to {limit}")
+            sequence = sequence[:limit]
+            
         # Clean sequence by removing all whitespace and newlines
         sequence = "".join(sequence.split()).upper()
         seq_length = len(sequence)
@@ -101,6 +106,9 @@ def get_kmer_frequencies(sequence: str, k_size: int = 3) -> str:
                 "molecular_weight": mol_weight,
                 "melting_temp": tm,
                 "reverse_complement": rev_comp,
+                "is_truncated": seq_length < original_length,
+                "original_length": original_length,
+                "limit_used": limit,
             }
         )
     except Exception as e:

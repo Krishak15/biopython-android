@@ -65,7 +65,7 @@ class AppTheme {
         displayLarge: manrope.displayLarge?.copyWith(
           color: onSurface, 
           fontWeight: FontWeight.w900,
-          letterSpacing: -1.0,
+          letterSpacing: -1,
         ),
         displayMedium: manrope.displayMedium?.copyWith(
           color: onSurface, 

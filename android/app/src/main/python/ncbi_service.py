@@ -69,7 +69,7 @@ def search_ncbi(query, db="protein", retmax=10):
         return json.dumps({"status": "error", "message": str(e)})
 
 
-def fetch_and_analyze(uid, db="protein"):
+def fetch_and_analyze(uid, db="protein", limit=100000):
     """
     Fetch a sequence from NCBI by UID and analyze it.
 
@@ -101,8 +101,8 @@ def fetch_and_analyze(uid, db="protein"):
         sequence = "".join(line.strip() for line in lines[1:])
 
         _log(f"Got sequence: {description[:60]}... len={len(sequence)}")
-
-        analysis_json = analyze_sequence_only(sequence, db)
+        
+        analysis_json = analyze_sequence_only(sequence, db, limit)
         analysis_dict = json.loads(analysis_json)
         
         if analysis_dict.get("status") == "error":
@@ -124,14 +124,25 @@ def fetch_and_analyze(uid, db="protein"):
         return json.dumps({"status": "error", "message": str(e)})
 
 
-def analyze_sequence_only(sequence: str, db: str = "protein") -> str:
+def analyze_sequence_only(sequence: str, db: str = "protein", limit=100000) -> str:
     """
     Analyze a sequence (protein or dna) without fetching from NCBI.
     Returns JSON with analysis results.
     """
     try:
         is_protein = (db == "protein")
-        analysis = {}
+        original_length = len(sequence)
+        is_truncated = original_length > limit
+        
+        if is_truncated:
+            _log(f"Truncating sequence from {original_length} to {limit}")
+            sequence = sequence[:limit]
+            
+        analysis = {
+            "is_truncated": is_truncated,
+            "original_length": original_length,
+            "limit_used": limit,
+        }
 
         if is_protein:
             from Bio.SeqUtils.ProtParam import ProteinAnalysis
@@ -148,7 +159,7 @@ def analyze_sequence_only(sequence: str, db: str = "protein") -> str:
             molar_ext = analyzer.molar_extinction_coefficient()
             amino_counts = analyzer.count_amino_acids()
             
-            analysis = {
+            analysis.update({
                 "type": "protein",
                 "molecular_weight": round(analyzer.molecular_weight(), 2),
                 "isoelectric_point": round(analyzer.isoelectric_point(), 2),
@@ -159,16 +170,19 @@ def analyze_sequence_only(sequence: str, db: str = "protein") -> str:
                 "secondary_structure_fraction": [round(x, 4) for x in sec_struct],
                 "molar_extinction_coefficient": list(molar_ext),
                 "amino_acid_counts": amino_counts,
-            }
+                "is_truncated": is_truncated,
+                "original_length": original_length,
+                "limit_used": limit,
+            })
         else:
             import dna_classifier
-            dna_json = dna_classifier.get_kmer_frequencies(sequence, 3)
+            dna_json = dna_classifier.get_kmer_frequencies(sequence, 3, limit=limit)
             dna_dict = json.loads(dna_json)
             
             if dna_dict.get("status") == "error":
                 return json.dumps({"status": "error", "message": dna_dict.get("message", "DNA analysis failed")})
 
-            analysis = {
+            analysis.update({
                 "type": "nucleotide",
                 "kmer_size": dna_dict.get("kmer_size"),
                 "sequence_length": dna_dict.get("sequence_length"),
@@ -178,7 +192,7 @@ def analyze_sequence_only(sequence: str, db: str = "protein") -> str:
                 "molecular_weight": dna_dict.get("molecular_weight"),
                 "melting_temp": dna_dict.get("melting_temp"),
                 "reverse_complement": dna_dict.get("reverse_complement"),
-            }
+            })
 
         return json.dumps({
             "status": "success",

@@ -41,6 +41,7 @@ class MainActivity : FlutterActivity() {
                     "ncbiSearch" -> handleNcbiSearch(call, result)
                     "ncbiFetch" -> handleNcbiFetch(call, result)
                     "ncbiAnalyzeLocal" -> handleNcbiAnalyzeLocal(call, result)
+                    "getTelemetry" -> handleTelemetry(result)
                     else -> result.notImplemented()
                 }
             }
@@ -78,6 +79,19 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun handleTelemetry(result: MethodChannel.Result) {
+        val runtime = Runtime.getRuntime()
+        val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024
+        val maxMem = runtime.maxMemory() / 1024 / 1024
+        
+        val map = mapOf(
+            "usedMemory" to usedMem,
+            "maxMemory" to maxMem,
+            "timestamp" to System.currentTimeMillis()
+        )
+        result.success(JSONObject(map).toString())
+    }
+
     private fun handleProteinAnalyze(call: MethodCall, result: MethodChannel.Result) {
         val sequence = call.argument<String>("sequence")
         if (sequence == null || sequence.isEmpty()) {
@@ -87,9 +101,10 @@ class MainActivity : FlutterActivity() {
 
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                Log.d(TAG, "proteinAnalyze: start sequence_length=${sequence.length}")
+                val limit = (call.argument<Any>("limit") as? Number)?.toInt() ?: 100000
+                Log.d(TAG, "proteinAnalyze: start sequence_length=${sequence.length} limit=$limit")
                 val module = Python.getInstance().getModule("protein_analyzer")
-                val jsonResult = module.callAttr("analyze_protein", sequence).toString()
+                val jsonResult = module.callAttr("analyze_protein", sequence, limit).toString()
                 Log.d(TAG, "proteinAnalyze: success")
                 withContext(Dispatchers.Main) {
                     result.success(jsonResult)
@@ -118,9 +133,10 @@ class MainActivity : FlutterActivity() {
 
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                Log.d(TAG, "dnaClassify: start sequence_length=${sequence.length} kmerSize=$kmerSize")
+                val limit = (call.argument<Any>("limit") as? Number)?.toInt() ?: 100000
+                Log.d(TAG, "dnaClassify: start sequence_length=${sequence.length} kmerSize=$kmerSize limit=$limit")
                 val module = Python.getInstance().getModule("dna_classifier")
-                val jsonResult = module.callAttr("get_kmer_frequencies", sequence, kmerSize).toString()
+                val jsonResult = module.callAttr("get_kmer_frequencies", sequence, kmerSize, limit).toString()
                 Log.d(TAG, "dnaClassify: success")
                 withContext(Dispatchers.Main) {
                     result.success(jsonResult)
@@ -160,11 +176,12 @@ class MainActivity : FlutterActivity() {
     private fun handleNcbiFetch(call: MethodCall, result: MethodChannel.Result) {
         val uid = call.argument<String>("id") ?: ""
         val db = call.argument<String>("db") ?: "protein"
-        Log.d(TAG, "handleNcbiFetch: start id=$uid db=$db")
+        val limit = (call.argument<Any>("limit") as? Number)?.toInt() ?: 100000
+        Log.d(TAG, "handleNcbiFetch: start id=$uid db=$db limit=$limit")
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 val module = Python.getInstance().getModule("ncbi_service")
-                val jsonResult = module.callAttr("fetch_and_analyze", uid, db).toString()
+                val jsonResult = module.callAttr("fetch_and_analyze", uid, db, limit).toString()
                 Log.d(TAG, "handleNcbiFetch: success")
                 withContext(Dispatchers.Main) { result.success(jsonResult) }
             } catch (e: Exception) {
@@ -177,11 +194,12 @@ class MainActivity : FlutterActivity() {
     private fun handleNcbiAnalyzeLocal(call: MethodCall, result: MethodChannel.Result) {
         val sequence = call.argument<String>("sequence") ?: ""
         val db = call.argument<String>("db") ?: "protein"
-        Log.d(TAG, "handleNcbiAnalyzeLocal: start sequence_length=${sequence.length} db=$db")
+        val limit = (call.argument<Any>("limit") as? Number)?.toInt() ?: 100000
+        Log.d(TAG, "handleNcbiAnalyzeLocal: start sequence_length=${sequence.length} db=$db limit=$limit")
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 val module = Python.getInstance().getModule("ncbi_service")
-                val jsonResult = module.callAttr("analyze_sequence_only", sequence, db).toString()
+                val jsonResult = module.callAttr("analyze_sequence_only", sequence, db, limit).toString()
                 Log.d(TAG, "handleNcbiAnalyzeLocal: success")
                 withContext(Dispatchers.Main) { result.success(jsonResult) }
             } catch (e: Exception) {

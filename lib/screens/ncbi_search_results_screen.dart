@@ -111,10 +111,10 @@ class _NcbiSearchContentState extends State<_NcbiSearchContent> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _filterController,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     hintText: 'Filter results...',
-                    prefixIcon: const Icon(Icons.filter_list_rounded, size: 20),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    prefixIcon: Icon(Icons.filter_list_rounded, size: 20),
+                    contentPadding: EdgeInsets.symmetric(vertical: 0),
                   ),
                 ),
               ],
@@ -196,8 +196,7 @@ class _RepositoryCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
+  Widget build(BuildContext context) => Container(
       decoration: BoxDecoration(
         color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(24),
@@ -282,5 +281,4 @@ class _RepositoryCard extends StatelessWidget {
         ),
       ),
     );
-  }
 }

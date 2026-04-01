@@ -25,14 +25,14 @@ class NcbiRecordProvider extends ChangeNotifier {
     _currentAnalysis = record['analysis'] as Map<String, dynamic>? ?? {};
   }
 
-  Future<void> updateSequence(int length, String db) async {
+  Future<void> updateSequence(int length, String db, {int limit = 100000}) async {
     _isAnalyzing = true;
     _error = null;
     _currentSequence = _originalSequence.substring(0, length);
     notifyListeners();
 
     try {
-      final result = await _bridge.ncbiAnalyzeLocal(_currentSequence, db: db);
+      final result = await _bridge.ncbiAnalyzeLocal(_currentSequence, db: db, limit: limit);
       _currentAnalysis = result['analysis'] as Map<String, dynamic>? ?? {};
     } catch (e) {
       _error = e.toString();

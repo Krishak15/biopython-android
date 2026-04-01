@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/biology_platform_bridge.dart';
 import '../screens/ncbi_search_results_screen.dart';
@@ -28,11 +29,70 @@ class AnalysisHubProvider extends ChangeNotifier {
   int _kmerSize = 3;
   int get kmerSize => _kmerSize;
 
+  int _maxSequenceLength = 100000;
+  int get maxSequenceLength => _maxSequenceLength;
+
+  bool _isSafetyLocked = true;
+  bool get isSafetyLocked => _isSafetyLocked;
+
+  Map<String, dynamic>? _telemetry;
+  Map<String, dynamic>? get telemetry => _telemetry;
+
+  double get deviceStressFactor {
+    if (_telemetry == null) return 0.0;
+    final used = (_telemetry!['usedMemory'] as num).toDouble();
+    final max = (_telemetry!['maxMemory'] as num).toDouble();
+    if (max == 0) return 0.0;
+    return (used / max).clamp(0.0, 1.0);
+  }
+
+  String get deviceRiskLevel {
+    final factor = deviceStressFactor;
+    if (factor < 0.6) return 'OPTIMAL';
+    if (factor < 0.82) return 'STRESSED';
+    return 'CRITICAL';
+  }
+
+  Timer? _telemetryTimer;
+
   bool _isSearching = false;
   bool get isSearching => _isSearching;
 
+  void startManualTelemetry() => _startTelemetryPolling();
+  void stopManualTelemetry() => _stopTelemetryPolling();
+
   void setKmerSize(int value) {
     _kmerSize = value;
+    notifyListeners();
+  }
+
+  void setMaxSequenceLength(int value) {
+    _maxSequenceLength = value;
+    notifyListeners();
+  }
+
+  void toggleSafetyLock({required bool isLocked}) {
+    _isSafetyLocked = isLocked;
+    // Re-lock forces the limit back to a safe range if it was exceeded
+    if (isLocked && _maxSequenceLength > 100000) {
+      _maxSequenceLength = 100000;
+    }
+    notifyListeners();
+  }
+
+  void _startTelemetryPolling() {
+    _telemetryTimer?.cancel();
+    _telemetryTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+      final data = await _bridge.getTelemetry();
+      _telemetry = data;
+      notifyListeners();
+    });
+  }
+
+  void _stopTelemetryPolling() {
+    _telemetryTimer?.cancel();
+    _telemetryTimer = null;
+    _telemetry = null;
     notifyListeners();
   }
 
@@ -65,14 +125,17 @@ class AnalysisHubProvider extends ChangeNotifier {
     _proteinResult = null;
     _proteinError = null;
     _statusMessage = 'Synthesizing protein structure...';
+    _startTelemetryPolling();
     notifyListeners();
 
     try {
-      final result = await _bridge.analyzeProtein(sequence);
+      final result = await _bridge.analyzeProtein(sequence, limit: _maxSequenceLength);
       _proteinResult = result;
       _proteinError = null;
       _status = AnalysisStatus.ready;
-      _statusMessage = 'Protein diagnostics optimal.';
+      _statusMessage = result.isTruncated 
+          ? 'Snapshot complete (Truncated to $_maxSequenceLength).'
+          : 'Protein diagnostics optimal.';
     } on BiologyBridgeException catch (e) {
       _proteinError = e.message;
       _status = AnalysisStatus.error;
@@ -82,6 +145,7 @@ class AnalysisHubProvider extends ChangeNotifier {
       _status = AnalysisStatus.error;
       _statusMessage = 'Diagnostics error: $e';
     } finally {
+      _stopTelemetryPolling();
       notifyListeners();
     }
   }
@@ -97,14 +161,17 @@ class AnalysisHubProvider extends ChangeNotifier {
     _dnaResult = null;
     _dnaError = null;
     _statusMessage = 'Sequence clustering engaged...';
+    _startTelemetryPolling();
     notifyListeners();
 
     try {
-      final result = await _bridge.dnaClassify(sequence, kmerSize: _kmerSize);
+      final result = await _bridge.dnaClassify(sequence, kmerSize: _kmerSize, limit: _maxSequenceLength);
       _dnaResult = result;
       _dnaError = null;
       _status = AnalysisStatus.ready;
-      _statusMessage = 'Clustering complete. ${result.totalKmers} K-mers.';
+      _statusMessage = result.isTruncated
+          ? 'Clustering complete (Truncated to $_maxSequenceLength).'
+          : 'Clustering complete. ${result.totalKmers} K-mers.';
     } on BiologyBridgeException catch (e) {
       _dnaError = e.message;
       _status = AnalysisStatus.error;
@@ -114,6 +181,7 @@ class AnalysisHubProvider extends ChangeNotifier {
       _status = AnalysisStatus.error;
       _statusMessage = 'Classification error: $e';
     } finally {
+      _stopTelemetryPolling();
       notifyListeners();
     }
   }

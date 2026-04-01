@@ -44,7 +44,7 @@ def _ensure_biopython_loaded():
             raise RuntimeError(_error_message) from exc
 
 
-def analyze_protein(sequence: str) -> str:
+def analyze_protein(sequence: str, limit: int = 100000) -> str:
     """
     Analyze a protein sequence to extract biochemical properties.
 
@@ -75,6 +75,11 @@ def analyze_protein(sequence: str) -> str:
         _ensure_biopython_loaded()
 
         with _protein_lock:
+            original_length = len(sequence)
+            if original_length > limit:
+                _log(f"Truncating sequence from {original_length} to {limit}")
+                sequence = sequence[:limit]
+                
             # Clean sequence by removing all whitespace and newlines
             clean_sequence = "".join(sequence.split())
             # Initialize the BioPython analyzer
@@ -101,6 +106,9 @@ def analyze_protein(sequence: str) -> str:
                     "secondary_structure_fraction": [round(x, 4) for x in sec_struct],
                     "molar_extinction_coefficient": list(molar_ext),
                     "amino_acid_counts": amino_counts,
+                    "is_truncated": original_length > limit,
+                    "original_length": original_length,
+                    "limit_used": limit,
                 }
             )
     except Exception as e:

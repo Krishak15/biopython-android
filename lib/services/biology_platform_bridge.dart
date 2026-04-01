@@ -27,9 +27,13 @@ class ProteinAnalysisResult {
     required this.secondaryStructureFraction,
     required this.molarExtinctionCoefficient,
     required this.aminoAcidCounts,
+    required this.isTruncated,
+    required this.originalLength,
+    required this.limitUsed,
   });
 
   factory ProteinAnalysisResult.fromJson(Map<String, dynamic> json) {
+    final analysis = json['analysis'] as Map<String, dynamic>? ?? json;
     final counts = json['amino_acid_counts'];
     final aminoAcidCounts = <String, int>{};
     if (counts is Map) {
@@ -50,11 +54,18 @@ class ProteinAnalysisResult {
       secondaryStructureFraction: secStruct.map((e) => (e as num).toDouble()).toList(),
       molarExtinctionCoefficient: molarExt.map((e) => (e as num).toInt()).toList(),
       aminoAcidCounts: aminoAcidCounts,
+      isTruncated: (analysis['is_truncated'] as bool?) ?? false,
+      originalLength: (analysis['original_length'] as num?)?.toInt() ?? 0,
+      limitUsed: (analysis['limit_used'] as num?)?.toInt() ?? 0,
     );
   }
 
   /// Molecular weight in Daltons.
   final double molecularWeight;
+  
+  final bool isTruncated;
+  final int originalLength;
+  final int limitUsed;
 
   /// Isoelectric point (pH at which protein has no net charge).
   final double isoelectricPoint;
@@ -89,10 +100,14 @@ class DnaClassificationResult {
     required this.molecularWeight,
     required this.meltingTemp,
     required this.reverseComplement,
+    required this.isTruncated,
+    required this.originalLength,
+    required this.limitUsed,
   });
 
   factory DnaClassificationResult.fromJson(Map<String, dynamic> json) {
-    final freqs = json['frequencies'];
+    final analysis = json['analysis'] as Map<String, dynamic>? ?? json;
+    final freqs = analysis['frequencies'];
     final frequencies = <String, int>{};
     if (freqs is Map) {
       freqs.forEach((key, value) {
@@ -107,13 +122,20 @@ class DnaClassificationResult {
       frequencies: frequencies,
       gcContent: (json['gc_content'] as num?)?.toDouble() ?? 0.0,
       molecularWeight: (json['molecular_weight'] as num?)?.toDouble() ?? 0.0,
-      meltingTemp: (json['melting_temp'] as num?)?.toDouble() ?? 0.0,
-      reverseComplement: json['reverse_complement'] as String? ?? '',
+      meltingTemp: (analysis['melting_temp'] as num?)?.toDouble() ?? 0.0,
+      reverseComplement: analysis['reverse_complement'] as String? ?? '',
+      isTruncated: (analysis['is_truncated'] as bool?) ?? false,
+      originalLength: (analysis['original_length'] as num?)?.toInt() ?? 0,
+      limitUsed: (analysis['limit_used'] as num?)?.toInt() ?? 0,
     );
   }
 
   /// Size of k-mers used (e.g., 3 for 3-mers).
   final int kmerSize;
+
+  final bool isTruncated;
+  final int originalLength;
+  final int limitUsed;
 
   /// Length of input DNA sequence.
   final int sequenceLength;
@@ -172,6 +194,17 @@ class PythonImageBridge {
     }
   }
 
+  /// Get live memory and system metrics from the platform.
+  Future<Map<String, dynamic>> getTelemetry() async {
+    try {
+      final raw = await _channel.invokeMethod<String>('getTelemetry');
+      return jsonDecode(raw ?? '{}') as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('[PythonImageBridge] getTelemetry error: $e');
+      return {};
+    }
+  }
+
   /// Analyze a protein sequence to extract biochemical properties.
   ///
   /// Args:
@@ -181,13 +214,14 @@ class PythonImageBridge {
   ///   and amino acid counts.
   ///
   /// Throws: BiologyBridgeException on analysis failure.
-  Future<ProteinAnalysisResult> analyzeProtein(String sequence) async {
+  Future<ProteinAnalysisResult> analyzeProtein(String sequence, {int limit = 100000}) async {
     debugPrint(
-      '[PythonImageBridge] analyzeProtein: sequenceLength=${sequence.length}',
+      '[PythonImageBridge] analyzeProtein: sequenceLength=${sequence.length} limit=$limit',
     );
     try {
       final raw = await _channel.invokeMethod<String>('proteinAnalyze', {
         'sequence': sequence,
+        'limit': limit,
       });
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       final status = jsonMap['status'] as String?;
@@ -227,14 +261,16 @@ class PythonImageBridge {
   Future<DnaClassificationResult> dnaClassify(
     String sequence, {
     int kmerSize = 3,
+    int limit = 100000,
   }) async {
     debugPrint(
-      '[PythonImageBridge] dnaClassify: sequenceLength=${sequence.length} kmerSize=$kmerSize',
+      '[PythonImageBridge] dnaClassify: sequenceLength=${sequence.length} kmerSize=$kmerSize limit=$limit',
     );
     try {
       final raw = await _channel.invokeMethod<String>('dnaClassify', {
         'sequence': sequence,
         'kmerSize': kmerSize,
+        'limit': limit,
       });
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       final status = jsonMap['status'] as String?;
@@ -285,9 +321,13 @@ class PythonImageBridge {
   }
 
   /// Fetch a record from NCBI and analyze it
-  Future<Map<String, dynamic>> ncbiFetch(String id, {String db = 'protein'}) async {
+  Future<Map<String, dynamic>> ncbiFetch(String id, {String db = 'protein', int limit = 100000}) async {
     try {
-      final raw = await _channel.invokeMethod('ncbiFetch', {'id': id, 'db': db});
+      final raw = await _channel.invokeMethod('ncbiFetch', {
+        'id': id, 
+        'db': db,
+        'limit': limit,
+      });
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       if (jsonMap['status'] == 'success') {
         return jsonMap;
@@ -299,9 +339,13 @@ class PythonImageBridge {
   }
 
   /// Re-analyze a sequence locally (without NCBI fetch)
-  Future<Map<String, dynamic>> ncbiAnalyzeLocal(String sequence, {String db = 'protein'}) async {
+  Future<Map<String, dynamic>> ncbiAnalyzeLocal(String sequence, {String db = 'protein', int limit = 100000}) async {
     try {
-      final raw = await _channel.invokeMethod('ncbiAnalyzeLocal', {'sequence': sequence, 'db': db});
+      final raw = await _channel.invokeMethod('ncbiAnalyzeLocal', {
+        'sequence': sequence, 
+        'db': db,
+        'limit': limit,
+      });
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       if (jsonMap['status'] == 'success') {
         return jsonMap;

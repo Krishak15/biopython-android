@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/biology_platform_bridge.dart';
 import '../screens/ncbi_record_details_screen.dart';
+import '../providers/analysis_hub_provider.dart';
+import 'package:provider/provider.dart';
 
 class NcbiSearchProvider extends ChangeNotifier {
   final PythonImageBridge _bridge = PythonImageBridge();
@@ -30,7 +32,11 @@ class NcbiSearchProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final record = await _bridge.ncbiFetch(id, db: db);
+      // Respect the global sequence limit from AnalysisHubProvider
+      final hub = Provider.of<AnalysisHubProvider>(context, listen: false);
+      final limit = hub.maxSequenceLength;
+
+      final record = await _bridge.ncbiFetch(id, db: db, limit: limit);
       _isFetching = false;
       
       if (!context.mounted) {
