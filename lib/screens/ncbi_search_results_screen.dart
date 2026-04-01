@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'ncbi_record_details_screen.dart';
-import '../services/biology_platform_bridge.dart';
+import 'package:provider/provider.dart';
+import '../providers/ncbi_search_provider.dart';
 
-class NcbiSearchResultsScreen extends StatefulWidget {
+class NcbiSearchResultsScreen extends StatelessWidget {
   const NcbiSearchResultsScreen({
     required this.results,
     required this.query,
@@ -14,73 +14,57 @@ class NcbiSearchResultsScreen extends StatefulWidget {
   final String db;
 
   @override
-  State<NcbiSearchResultsScreen> createState() =>
-      _NcbiSearchResultsScreenState();
+  Widget build(BuildContext context) => ChangeNotifierProvider(
+    create: (_) => NcbiSearchProvider()..initialize(results),
+    child: _NcbiSearchContent(query: query, db: db, allResults: results),
+  );
 }
 
-class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
+class _NcbiSearchContent extends StatefulWidget {
+  const _NcbiSearchContent({
+    required this.query,
+    required this.db,
+    required this.allResults,
+  });
+  final String query;
+  final String db;
+  final List<Map<String, dynamic>> allResults;
+
+  @override
+  State<_NcbiSearchContent> createState() => _NcbiSearchContentState();
+}
+
+class _NcbiSearchContentState extends State<_NcbiSearchContent> {
   final _filterController = TextEditingController();
-  late List<Map<String, dynamic>> _filteredResults;
-  final _bridge = PythonImageBridge();
-  bool _isFetching = false;
 
   @override
   void initState() {
     super.initState();
-    _filteredResults = widget.results;
     _filterController.addListener(_onFilterChanged);
   }
 
   @override
   void dispose() {
-    _filterController..removeListener(_onFilterChanged)
-    ..dispose();
+    _filterController
+      ..removeListener(_onFilterChanged)
+      ..dispose();
     super.dispose();
   }
 
   void _onFilterChanged() {
-    final text = _filterController.text.toLowerCase();
-    setState(() {
-      _filteredResults = widget.results.where((res) {
-        final title = (res['title'] as String? ?? '').toLowerCase();
-        final id = (res['id'] as String? ?? '').toLowerCase();
-        return title.contains(text) || id.contains(text);
-      }).toList();
-    });
-  }
-
-  Future<void> _fetchAndAnalyze(String id) async {
-    setState(() => _isFetching = true);
-
-    try {
-      final record = await _bridge.ncbiFetch(id, db: widget.db);
-      if (!mounted) {
-        return;
-      }
-      setState(() => _isFetching = false);
-
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => NcbiRecordDetailsScreen(record: record),
-        ),
-      );
-    } catch (e) {
-      setState(() => _isFetching = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connection fault: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+    if (!mounted) {
+      return;
     }
+    context.read<NcbiSearchProvider>().filterResults(
+      widget.allResults,
+      _filterController.text,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final provider = context.watch<NcbiSearchProvider>();
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -118,11 +102,14 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [theme.colorScheme.surface, theme.colorScheme.surfaceContainerLow],
+                colors: [
+                  theme.colorScheme.surface,
+                  theme.colorScheme.surfaceContainerLow,
+                ],
               ),
             ),
           ),
-          if (_filteredResults.isEmpty)
+          if (provider.filteredResults.isEmpty)
             Center(
               child: Text(
                 'Null ResultSet',
@@ -135,18 +122,20 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
           else
             ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              itemCount: _filteredResults.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 16), // spacing-6 separation
+              itemCount: provider.filteredResults.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
-                final res = _filteredResults[index];
+                final res = provider.filteredResults[index];
                 return InkWell(
-                  onTap: () => _fetchAndAnalyze(res['id']),
+                  onTap: () => context
+                      .read<NcbiSearchProvider>()
+                      .fetchAndAnalyze(context, res['id'], widget.db),
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(20), // Between lg and xl
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,7 +154,10 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: theme.colorScheme.surfaceContainer,
                                 borderRadius: BorderRadius.circular(8),
@@ -179,7 +171,11 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
                                 ),
                               ),
                             ),
-                            Icon(Icons.arrow_forward_ios_rounded, size: 14, color: theme.colorScheme.onSurfaceVariant),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 14,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ],
                         ),
                       ],
@@ -188,8 +184,8 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
                 );
               },
             ),
-          
-          if (_isFetching)
+
+          if (provider.isFetching)
             Container(
               color: Colors.black.withValues(alpha: 0.6),
               child: const Center(

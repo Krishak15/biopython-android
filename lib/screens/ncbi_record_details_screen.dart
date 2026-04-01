@@ -1,36 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/biology_platform_bridge.dart';
-import 'biotech_analysis_screen.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
 
-class NcbiRecordDetailsScreen extends StatefulWidget {
+import '../services/biology_platform_bridge.dart';
+import '../providers/ncbi_record_provider.dart';
+import 'biotech_analysis_screen.dart';
 
+class NcbiRecordDetailsScreen extends StatelessWidget {
   const NcbiRecordDetailsScreen({required this.record, super.key});
   final Map<String, dynamic> record;
 
   @override
-  State<NcbiRecordDetailsScreen> createState() => _NcbiRecordDetailsScreenState();
+  Widget build(BuildContext context) => ChangeNotifierProvider(
+      create: (_) => NcbiRecordProvider()..initialize(record),
+      child: _NcbiRecordDetailsContent(record: record),
+    );
 }
 
-class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
-  final _bridge = PythonImageBridge();
-  late String _originalSequence;
-  late String _currentSequence;
-  late Map<String, dynamic> _currentAnalysis;
-  
+class _NcbiRecordDetailsContent extends StatefulWidget {
+  const _NcbiRecordDetailsContent({required this.record});
+  final Map<String, dynamic> record;
+
+  @override
+  State<_NcbiRecordDetailsContent> createState() => _NcbiRecordDetailsContentState();
+}
+
+class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
   final _lengthController = TextEditingController();
   Timer? _debounce;
-  bool _isAnalyzing = false;
-  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _originalSequence = widget.record['sequence'] ?? '';
-    _currentSequence = _originalSequence;
-    _currentAnalysis = widget.record['analysis'] as Map<String, dynamic>? ?? {};
-    _lengthController.text = _currentSequence.length.toString();
+    // Initialize length controller text with max sequence length 
+    // Wait until build completes to grab provider sequence 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final prov = context.read<NcbiRecordProvider>();
+        _lengthController.text = prov.currentSequence.length.toString();
+      }
+    });
   }
 
   @override
@@ -40,7 +50,7 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
     super.dispose();
   }
 
-  void _onLengthChanged(String value) {
+  void _onLengthChanged(String value, NcbiRecordProvider provider) {
     if (_debounce?.isActive ?? false) {
       _debounce!.cancel();
     }
@@ -55,46 +65,26 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
       if (newLength < 1) {
         newLength = 1;
       }
-      if (newLength > _originalSequence.length) {
-        newLength = _originalSequence.length;
+      if (newLength > provider.originalSequence.length) {
+        newLength = provider.originalSequence.length;
       }
 
       if (_lengthController.text != newLength.toString()) {
         _lengthController.text = newLength.toString();
       }
 
-      if (_currentSequence.length != newLength) {
-        _updateSequence(newLength);
+      if (provider.currentSequence.length != newLength) {
+        final db = widget.record['analysis']['type'] == 'protein' ? 'protein' : 'nucleotide';
+        provider.updateSequence(newLength, db);
       }
     });
-  }
-
-  Future<void> _updateSequence(int length) async {
-    setState(() {
-      _isAnalyzing = true;
-      _error = null;
-      _currentSequence = _originalSequence.substring(0, length);
-    });
-
-    try {
-      final db = widget.record['analysis']['type'] == 'protein' ? 'protein' : 'nucleotide';
-      final result = await _bridge.ncbiAnalyzeLocal(_currentSequence, db: db);
-      setState(() {
-        _currentAnalysis = result['analysis'] as Map<String, dynamic>? ?? {};
-        _isAnalyzing = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isAnalyzing = false;
-      });
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final type = _currentAnalysis['type'];
+    final provider = context.watch<NcbiRecordProvider>();
+    final type = provider.currentAnalysis['type'] ?? widget.record['analysis']?['type'];
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -162,7 +152,7 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
                         color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 40,
                         spreadRadius: -4,
-                      )
+                      ),
                     ],
                   ),
                   child: Column(
@@ -175,7 +165,7 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
                             'Sequence Extent',
                             style: theme.textTheme.titleMedium,
                           ),
-                          if (_isAnalyzing) 
+                          if (provider.isAnalyzing) 
                             const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                         ],
                       ),
@@ -184,30 +174,30 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
                         controller: _lengthController,
                         keyboardType: TextInputType.number,
                         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                        onChanged: _onLengthChanged,
+                        onChanged: (v) => _onLengthChanged(v, context.read<NcbiRecordProvider>()),
                         style: const TextStyle(fontFamily: 'monospace', fontSize: 18),
                         decoration: InputDecoration(
-                          labelText: 'Base Pairs (1 - ${_originalSequence.length})',
+                          labelText: 'Base Pairs (1 - ${provider.originalSequence.isNotEmpty ? provider.originalSequence.length : widget.record['sequence']?.length ?? 0})',
                           fillColor: Colors.black, // surfaceContainerLowest
                         ),
                       ),
-                      if (_error != null) ...[
+                      if (provider.error != null) ...[
                         const SizedBox(height: 12),
                         Text(
-                          'FAULT: $_error',
+                          'FAULT: ${provider.error}',
                           style: TextStyle(color: theme.colorScheme.error, letterSpacing: 1),
                         ),
-                      ]
+                      ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 32), // spacing-8
 
                 // Results Layer
-                if (type == 'protein')
-                  ProteinResultCard(result: ProteinAnalysisResult.fromJson(_currentAnalysis))
-                else if (type == 'dna')
-                  DnaResultCard(result: DnaClassificationResult.fromJson(_currentAnalysis)),
+                if (type == 'protein' && provider.currentAnalysis.isNotEmpty)
+                  ProteinResultCard(result: ProteinAnalysisResult.fromJson(provider.currentAnalysis))
+                else if (type == 'nucleotide' && provider.currentAnalysis.isNotEmpty)
+                  DnaResultCard(result: DnaClassificationResult.fromJson(provider.currentAnalysis)),
                 
                 const SizedBox(height: 32),
 
@@ -221,12 +211,12 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerLowest, // deep black
+                    color: Colors.black, // surfaceContainerLowest
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1)),
                   ),
                   child: SelectableText(
-                    _currentSequence,
+                    provider.currentSequence,
                     style: TextStyle(
                       fontFamily: 'monospace', 
                       fontSize: 13,

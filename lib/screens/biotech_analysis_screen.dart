@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../services/biology_platform_bridge.dart';
-import 'ncbi_search_results_screen.dart';
-
-enum _AnalysisStatus { idle, ready, processing, error }
+import '../providers/analysis_hub_provider.dart';
 
 class BiotechAnalysisScreen extends StatefulWidget {
   const BiotechAnalysisScreen({super.key});
@@ -13,29 +12,10 @@ class BiotechAnalysisScreen extends StatefulWidget {
 }
 
 class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
-  final _bridge = PythonImageBridge();
   final _proteinController = TextEditingController();
   final _dnaController = TextEditingController();
-
-  _AnalysisStatus _status = _AnalysisStatus.idle;
-  String? _statusMessage;
-
-  ProteinAnalysisResult? _proteinResult;
-  String? _proteinError;
-
-  DnaClassificationResult? _dnaResult;
-  String? _dnaError;
-  int _kmerSize = 3;
-
   final _ncbiController = TextEditingController();
   String _ncbiDb = 'protein';
-  bool _isSearching = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkHealth();
-  }
 
   @override
   void dispose() {
@@ -45,168 +25,28 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
     super.dispose();
   }
 
-  Future<void> _checkHealth() async {
-    debugPrint('[BiotechAnalysisScreen] _checkHealth: start');
-    try {
-      final health = await _bridge.healthBiology();
-      final engineStatus = health['status'] as String? ?? 'IDLE';
-      final error = health['error'] as String? ?? '';
-
-      setState(() {
-        _status = engineStatus == 'READY'
-            ? _AnalysisStatus.ready
-            : _AnalysisStatus.idle;
-        _statusMessage = error.isEmpty ? 'Genomic Engine Initialized' : error;
-      });
-    } catch (e) {
-      debugPrint('[BiotechAnalysisScreen] _checkHealth error: $e');
-      setState(() {
-        _status = _AnalysisStatus.error;
-        _statusMessage = 'Engine Fault: $e';
-      });
-    }
-  }
-
-  Future<void> _analyzeProtein() async {
-    final sequence = _proteinController.text.trim();
-    if (sequence.isEmpty) {
-      setState(() => _proteinError = 'Sequence required');
-      return;
-    }
-
-    setState(() {
-      _status = _AnalysisStatus.processing;
-      _proteinResult = null;
-      _proteinError = null;
-      _statusMessage = 'Synthesizing protein structure...';
-    });
-
-    try {
-      final result = await _bridge.analyzeProtein(sequence);
-      setState(() {
-        _proteinResult = result;
-        _proteinError = null;
-        _status = _AnalysisStatus.ready;
-        _statusMessage = 'Protein diagnostics optimal.';
-      });
-    } on BiologyBridgeException catch (e) {
-      setState(() {
-        _proteinError = e.message;
-        _status = _AnalysisStatus.error;
-        _statusMessage = 'Failure: ${e.message}';
-      });
-    } catch (e) {
-      setState(() {
-        _proteinError = 'Fault: $e';
-        _status = _AnalysisStatus.error;
-        _statusMessage = 'Diagnostics error: $e';
-      });
-    }
-  }
-
-  Future<void> _classifyDna() async {
-    final sequence = _dnaController.text.trim();
-    if (sequence.isEmpty) {
-      setState(() => _dnaError = 'Sequence required');
-      return;
-    }
-
-    setState(() {
-      _status = _AnalysisStatus.processing;
-      _dnaResult = null;
-      _dnaError = null;
-      _statusMessage = 'Sequence clustering engaged...';
-    });
-
-    try {
-      final result = await _bridge.dnaClassify(sequence, kmerSize: _kmerSize);
-      setState(() {
-        _dnaResult = result;
-        _dnaError = null;
-        _status = _AnalysisStatus.ready;
-        _statusMessage = 'Clustering complete. ${result.totalKmers} K-mers.';
-      });
-    } on BiologyBridgeException catch (e) {
-      setState(() {
-        _dnaError = e.message;
-        _status = _AnalysisStatus.error;
-        _statusMessage = 'Classification fail: ${e.message}';
-      });
-    } catch (e) {
-      setState(() {
-        _dnaError = 'Fault: $e';
-        _status = _AnalysisStatus.error;
-        _statusMessage = 'Classification error: $e';
-      });
-    }
-  }
-
-  void _clearResults() {
-    setState(() {
-      _proteinController.clear();
-      _dnaController.clear();
-      _ncbiController.clear();
-      _proteinResult = null;
-      _proteinError = null;
-      _dnaResult = null;
-      _status = _AnalysisStatus.idle;
-      _statusMessage = 'Awaiting input sequences.';
-    });
-  }
-
-  Future<void> _searchNCBI() async {
-    final query = _ncbiController.text.trim();
-    if (query.isEmpty) {
-      return;
-    }
-
-    setState(() => _isSearching = true);
-
-    try {
-      final results = await _bridge.ncbiSearch(query, db: _ncbiDb);
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isSearching = false;
-        if (results.isEmpty) {
-          _statusMessage = 'Repository null response.';
-        } else {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => NcbiSearchResultsScreen(
-                results: results,
-                query: query,
-                db: _ncbiDb,
-              ),
-            ),
-          );
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _isSearching = false;
-        _statusMessage = 'Query connection failed.';
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final provider = context.watch<AnalysisHubProvider>();
+    final status = provider.status;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Analysis Hub'),
         actions: [
-          _StatusDot(status: _status),
+          _StatusDot(status: status),
           const SizedBox(width: 8),
           IconButton(
-            onPressed: _proteinResult != null || _dnaResult != null
-                ? _clearResults
+            onPressed:
+                provider.proteinResult != null || provider.dnaResult != null
+                ? () {
+                    _proteinController.clear();
+                    _dnaController.clear();
+                    _ncbiController.clear();
+                    provider.clearResults();
+                  }
                 : null,
             tooltip: 'Purge Memory',
             icon: const Icon(Icons.refresh_rounded),
@@ -216,7 +56,6 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
       ),
       body: Container(
         decoration: BoxDecoration(
-          // "Editorial Luminescence" gradient
           gradient: LinearGradient(
             begin: Alignment.topRight,
             end: Alignment.bottomLeft,
@@ -229,13 +68,13 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
         ),
         child: SafeArea(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             children: [
-              if (_statusMessage != null)
+              if (provider.statusMessage != null)
                 Text(
-                  _statusMessage!.toUpperCase(),
+                  provider.statusMessage!.toUpperCase(),
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: _status == _AnalysisStatus.error
+                    color: status == AnalysisStatus.error
                         ? theme.colorScheme.error
                         : theme.colorScheme.primary,
                     letterSpacing: 1.5,
@@ -253,21 +92,24 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                   label: 'Peptide Input',
                   controller: _proteinController,
                   hint: 'Ex: MKTAYIAKQRQIS...',
-                  error: _proteinError,
+                  error: provider.proteinError,
                 ),
                 action: _GradientButton(
                   label: 'Execute Diagnostics',
-                  onPressed: _status != _AnalysisStatus.processing
-                      ? _analyzeProtein
+                  onPressed: status != AnalysisStatus.processing
+                      ? () => provider.analyzeProtein(
+                          _proteinController.text.trim(),
+                        )
                       : null,
                   theme: theme,
                 ),
-                result: _proteinResult != null
-                    ? ProteinResultCard(result: _proteinResult!)
+                result: provider.proteinResult != null
+                    ? ProteinResultCard(result: provider.proteinResult!)
                     : null,
               ),
 
-              const SizedBox(height: 24), // spacing-6
+              const SizedBox(height: 24),
+
               // DNA Classification Card
               _buildAnalysisCard(
                 theme,
@@ -281,7 +123,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                       label: 'Nucleotide String',
                       controller: _dnaController,
                       hint: 'Ex: AGCTAGCTAGC...',
-                      error: _dnaError,
+                      error: provider.dnaError,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -289,20 +131,19 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                         Text('K-mer Scale:', style: theme.textTheme.labelLarge),
                         Expanded(
                           child: Slider(
-                            value: _kmerSize.toDouble(),
+                            value: provider.kmerSize.toDouble(),
                             min: 1,
                             max: 6,
                             divisions: 5,
                             activeColor: theme.colorScheme.secondary,
                             inactiveColor:
                                 theme.colorScheme.surfaceContainerHighest,
-                            label: '$_kmerSize bp',
-                            onChanged: (v) =>
-                                setState(() => _kmerSize = v.toInt()),
+                            label: '${provider.kmerSize} bp',
+                            onChanged: (v) => provider.setKmerSize(v.toInt()),
                           ),
                         ),
                         Text(
-                          '$_kmerSize',
+                          '${provider.kmerSize}',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontFamily: 'Manrope',
                           ),
@@ -313,14 +154,14 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                 ),
                 action: _GradientButton(
                   label: 'Engage Clustering',
-                  onPressed: _status != _AnalysisStatus.processing
-                      ? _classifyDna
+                  onPressed: status != AnalysisStatus.processing
+                      ? () => provider.classifyDna(_dnaController.text.trim())
                       : null,
                   theme: theme,
                   isSecondary: true,
                 ),
-                result: _dnaResult != null
-                    ? DnaResultCard(result: _dnaResult!)
+                result: provider.dnaResult != null
+                    ? DnaResultCard(result: provider.dnaResult!)
                     : null,
               ),
 
@@ -390,9 +231,15 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                 ),
                 action: _GradientButton(
                   label: 'Transmit Query',
-                  onPressed: _isSearching ? null : _searchNCBI,
+                  onPressed: provider.isSearching
+                      ? null
+                      : () => provider.searchNCBI(
+                          context,
+                          _ncbiController.text.trim(),
+                          _ncbiDb,
+                        ),
                   theme: theme,
-                  icon: _isSearching ? Icons.sync : Icons.radar,
+                  icon: provider.isSearching ? Icons.sync : Icons.radar,
                 ),
               ),
 
@@ -502,16 +349,16 @@ class _GradientButton extends StatelessWidget {
 
 class _StatusDot extends StatelessWidget {
   const _StatusDot({required this.status});
-  final _AnalysisStatus status;
+  final AnalysisStatus status;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = switch (status) {
-      _AnalysisStatus.idle => theme.colorScheme.onSurfaceVariant,
-      _AnalysisStatus.ready => Colors.greenAccent,
-      _AnalysisStatus.processing => theme.colorScheme.primary,
-      _AnalysisStatus.error => theme.colorScheme.error,
+      AnalysisStatus.idle => theme.colorScheme.onSurfaceVariant,
+      AnalysisStatus.ready => Colors.greenAccent,
+      AnalysisStatus.processing => theme.colorScheme.primary,
+      AnalysisStatus.error => theme.colorScheme.error,
     };
 
     return Container(
