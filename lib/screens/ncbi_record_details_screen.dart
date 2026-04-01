@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/biology_bridge_exception.dart';
+import '../services/biology_platform_bridge.dart';
 import 'biotech_analysis_screen.dart';
 import 'dart:async';
 

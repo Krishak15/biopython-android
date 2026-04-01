@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/biology_bridge_exception.dart';
+import '../services/biology_platform_bridge.dart';
 import 'ncbi_search_results_screen.dart';
 
 enum _AnalysisStatus { idle, ready, processing, error }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'ncbi_record_details_screen.dart';
-import '../services/biology_bridge_exception.dart';
+import '../services/biology_platform_bridge.dart';
 
 class NcbiSearchResultsScreen extends StatefulWidget {
   const NcbiSearchResultsScreen({
