@@ -241,6 +241,12 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
                                   ? 'SUB-FRAG LENGTH (HP LOCKED: MAX 100K)'
                                   : 'SUB-FRAG LENGTH (HP ACTIVE)',
                               fillColor: Colors.black.withValues(alpha: 0.3),
+                              suffixText: '/ ${provider.originalSequence.length}',
+                              suffixStyle: theme.textTheme.labelSmall?.copyWith(
+                                color: accentColor.withValues(alpha: 0.5),
+                                letterSpacing: 1,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
