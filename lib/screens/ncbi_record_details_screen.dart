@@ -5,9 +5,9 @@ import 'biotech_analysis_screen.dart';
 import 'dart:async';
 
 class NcbiRecordDetailsScreen extends StatefulWidget {
-  final Map<String, dynamic> record;
 
-  const NcbiRecordDetailsScreen({super.key, required this.record});
+  const NcbiRecordDetailsScreen({required this.record, super.key});
+  final Map<String, dynamic> record;
 
   @override
   State<NcbiRecordDetailsScreen> createState() => _NcbiRecordDetailsScreenState();
@@ -41,15 +41,23 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
   }
 
   void _onLengthChanged(String value) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+    }
     
     _debounce = Timer(const Duration(milliseconds: 500), () {
       final inputLength = int.tryParse(value);
-      if (inputLength == null) return;
+      if (inputLength == null) {
+        return;
+      }
 
-      int newLength = inputLength;
-      if (newLength < 1) newLength = 1;
-      if (newLength > _originalSequence.length) newLength = _originalSequence.length;
+      var newLength = inputLength;
+      if (newLength < 1) {
+        newLength = 1;
+      }
+      if (newLength > _originalSequence.length) {
+        newLength = _originalSequence.length;
+      }
 
       if (_lengthController.text != newLength.toString()) {
         _lengthController.text = newLength.toString();
@@ -93,7 +101,7 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
         title: const Text('NCBI Record Analysis'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -134,7 +142,7 @@ class _NcbiRecordDetailsScreenState extends State<NcbiRecordDetailsScreen> {
                               border: const OutlineInputBorder(),
                               suffixIcon: _isAnalyzing 
                                   ? const Padding(
-                                      padding: EdgeInsets.all(12.0),
+                                      padding: EdgeInsets.all(12),
                                       child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                                     )
                                   : null,

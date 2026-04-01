@@ -3,19 +3,19 @@ import 'ncbi_record_details_screen.dart';
 import '../services/biology_bridge_exception.dart';
 
 class NcbiSearchResultsScreen extends StatefulWidget {
+  const NcbiSearchResultsScreen({
+    required this.results,
+    required this.query,
+    required this.db,
+    super.key,
+  });
   final List<Map<String, dynamic>> results;
   final String query;
   final String db;
 
-  const NcbiSearchResultsScreen({
-    super.key,
-    required this.results,
-    required this.query,
-    required this.db,
-  });
-
   @override
-  State<NcbiSearchResultsScreen> createState() => _NcbiSearchResultsScreenState();
+  State<NcbiSearchResultsScreen> createState() =>
+      _NcbiSearchResultsScreenState();
 }
 
 class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
@@ -33,8 +33,9 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
 
   @override
   void dispose() {
-    _filterController.removeListener(_onFilterChanged);
-    _filterController.dispose();
+    _filterController
+      ..removeListener(_onFilterChanged)
+      ..dispose();
     super.dispose();
   }
 
@@ -51,14 +52,16 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
 
   Future<void> _fetchAndAnalyze(String id) async {
     setState(() => _isFetching = true);
-    
+
     try {
       final record = await _bridge.ncbiFetch(id, db: widget.db);
-      if (!mounted) return;
-      
+      if (!mounted) {
+        return;
+      }
+
       setState(() => _isFetching = false);
-      
-      Navigator.push(
+
+      await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => NcbiRecordDetailsScreen(record: record),
@@ -66,9 +69,11 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
       );
     } catch (e) {
       setState(() => _isFetching = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -82,7 +87,10 @@ class _NcbiSearchResultsScreenState extends State<NcbiSearchResultsScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(70),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
             child: TextField(
               controller: _filterController,
               decoration: InputDecoration(

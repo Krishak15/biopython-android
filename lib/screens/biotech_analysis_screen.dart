@@ -171,7 +171,9 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
 
   Future<void> _searchNCBI() async {
     final query = _ncbiController.text.trim();
-    if (query.isEmpty) return;
+    if (query.isEmpty) {
+      return;
+    }
 
     setState(() {
       _isSearching = true;
@@ -183,7 +185,9 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
 
     try {
       final results = await _bridge.ncbiSearch(query, db: _ncbiDb);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isSearching = false;
@@ -359,8 +363,10 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                       const SizedBox(width: 8),
                       DropdownButton<String>(
                         value: _ncbiDb,
-                        onChanged: (String? newValue) {
-                          if (newValue != null) setState(() => _ncbiDb = newValue);
+                        onChanged: (newValue) {
+                          if (newValue != null) {
+                            setState(() => _ncbiDb = newValue);
+                          }
                         },
                         items: const [
                           DropdownMenuItem(value: 'protein', child: Text('Protein')),
@@ -484,7 +490,7 @@ class _SequenceInputField extends StatelessWidget {
 }
 
 class ProteinResultCard extends StatelessWidget {
-  const ProteinResultCard({required this.result});
+  const ProteinResultCard({required this.result, super.key});
 
   final ProteinAnalysisResult result;
 
@@ -564,7 +570,7 @@ class ProteinResultCard extends StatelessWidget {
 }
 
 class DnaResultCard extends StatelessWidget {
-  const DnaResultCard({required this.result});
+  const DnaResultCard({required this.result, super.key});
 
   final DnaClassificationResult result;
 
@@ -644,7 +650,7 @@ class DnaResultCard extends StatelessWidget {
 
 
 class ResultRow extends StatelessWidget {
-  const ResultRow({required this.label, required this.value});
+  const ResultRow({required this.label, required this.value, super.key});
 
   final String label;
   final String value;

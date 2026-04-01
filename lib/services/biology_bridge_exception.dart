@@ -249,7 +249,7 @@ class PythonImageBridge {
   /// Search NCBI database (e.g., protein, nucleotide)
   Future<List<Map<String, dynamic>>> ncbiSearch(String query, {String db = 'protein', int retmax = 50}) async {
     try {
-      final String? raw = await _channel.invokeMethod('ncbiSearch', {
+      final raw = await _channel.invokeMethod('ncbiSearch', {
         'query': query,
         'db': db,
         'retmax': retmax,
@@ -267,7 +267,7 @@ class PythonImageBridge {
   /// Fetch a record from NCBI and analyze it
   Future<Map<String, dynamic>> ncbiFetch(String id, {String db = 'protein'}) async {
     try {
-      final String? raw = await _channel.invokeMethod('ncbiFetch', {'id': id, 'db': db});
+      final raw = await _channel.invokeMethod('ncbiFetch', {'id': id, 'db': db});
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       if (jsonMap['status'] == 'success') {
         return jsonMap;
@@ -281,7 +281,7 @@ class PythonImageBridge {
   /// Re-analyze a sequence locally (without NCBI fetch)
   Future<Map<String, dynamic>> ncbiAnalyzeLocal(String sequence, {String db = 'protein'}) async {
     try {
-      final String? raw = await _channel.invokeMethod('ncbiAnalyzeLocal', {'sequence': sequence, 'db': db});
+      final raw = await _channel.invokeMethod('ncbiAnalyzeLocal', {'sequence': sequence, 'db': db});
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       if (jsonMap['status'] == 'success') {
         return jsonMap;

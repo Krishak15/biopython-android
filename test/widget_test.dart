@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterpy/main.dart';
+import 'package:biopy/main.dart';
 
 void main() {
   testWidgets('BioPython app renders app bar title', (tester) async {
