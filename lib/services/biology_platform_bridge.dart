@@ -85,6 +85,10 @@ class DnaClassificationResult {
     required this.sequenceLength,
     required this.totalKmers,
     required this.frequencies,
+    required this.gcContent,
+    required this.molecularWeight,
+    required this.meltingTemp,
+    required this.reverseComplement,
   });
 
   factory DnaClassificationResult.fromJson(Map<String, dynamic> json) {
@@ -101,6 +105,10 @@ class DnaClassificationResult {
       sequenceLength: (json['sequence_length'] as num?)?.toInt() ?? 0,
       totalKmers: (json['total_kmers'] as num?)?.toInt() ?? 0,
       frequencies: frequencies,
+      gcContent: (json['gc_content'] as num?)?.toDouble() ?? 0.0,
+      molecularWeight: (json['molecular_weight'] as num?)?.toDouble() ?? 0.0,
+      meltingTemp: (json['melting_temp'] as num?)?.toDouble() ?? 0.0,
+      reverseComplement: json['reverse_complement'] as String? ?? '',
     );
   }
 
@@ -115,6 +123,18 @@ class DnaClassificationResult {
 
   /// Map of k-mer strings to their frequency counts.
   final Map<String, int> frequencies;
+
+  /// GC content percentage
+  final double gcContent;
+
+  /// Molecular weight in Daltons
+  final double molecularWeight;
+
+  /// Estimated melting temperature
+  final double meltingTemp;
+
+  /// Reverse complement of the sequence
+  final String reverseComplement;
 }
 
 /// Bridge to Python biology analysis modules (protein and DNA sequence analysis).

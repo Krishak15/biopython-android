@@ -7,6 +7,8 @@ subtype classification, or genetic marker detection without cloud computing.
 """
 
 import json
+from Bio.SeqUtils import gc_fraction, molecular_weight, MeltingTemp as mt
+from Bio.Seq import Seq
 
 
 def _log(message):
@@ -31,6 +33,10 @@ def get_kmer_frequencies(sequence: str, k_size: int = 3) -> str:
         - kmer_size: the k value used (if success)
         - frequencies: dict of {kmer: count} (if success)
         - message: error message (if status is "error")
+        - gc_content: GC percentage
+        - molecular_weight: daltons
+        - melting_temp: NN melting temp estimate
+        - reverse_complement: matching reverse strand
 
     Example:
         >>> result = get_kmer_frequencies("AGAT", k_size=2)
@@ -66,6 +72,20 @@ def get_kmer_frequencies(sequence: str, k_size: int = 3) -> str:
                 "No valid k-mers found (sequence may contain invalid characters)"
             )
 
+        gc_content = gc_fraction(sequence) * 100.0
+        try:
+            mol_weight = molecular_weight(sequence, seq_type="DNA")
+        except:
+            mol_weight = 0.0
+            
+        try:
+            tm = mt.Tm_NN(sequence)
+        except:
+            tm = 0.0
+            
+        bio_seq = Seq(sequence)
+        rev_comp = str(bio_seq.reverse_complement())
+
         _log(
             f"get_kmer_frequencies: k={k_size} seq_len={seq_length} unique_kmers={len(kmer_counts)}"
         )
@@ -77,6 +97,10 @@ def get_kmer_frequencies(sequence: str, k_size: int = 3) -> str:
                 "sequence_length": seq_length,
                 "frequencies": kmer_counts,
                 "total_kmers": total_kmers,
+                "gc_content": gc_content,
+                "molecular_weight": mol_weight,
+                "melting_temp": tm,
+                "reverse_complement": rev_comp,
             }
         )
     except Exception as e:

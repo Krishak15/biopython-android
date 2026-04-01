@@ -379,7 +379,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                               ),
                               DropdownMenuItem(
                                 value: 'nucleotide',
-                                child: Text('DNA'),
+                                child: Text('DNA/RNA'),
                               ),
                             ],
                           ),
@@ -572,13 +572,21 @@ class ResultRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: theme.textTheme.labelMedium),
-          Text(
-            value,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontFamily: 'monospace',
+          Expanded(
+            flex: 3,
+            child: Text(label, style: theme.textTheme.labelMedium),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 4,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFamily: 'monospace',
+              ),
             ),
           ),
         ],
@@ -615,10 +623,24 @@ class ProteinResultCard extends StatelessWidget {
             label: 'Isoelectric Point',
             value: '${result.isoelectricPoint} pH',
           ),
+          ResultRow(
+            label: 'Aromaticity',
+            value: result.aromaticity.toStringAsFixed(3),
+          ),
           ResultRow(label: 'GRAVY', value: result.gravy.toStringAsFixed(3)),
           ResultRow(
             label: 'Instability',
             value: result.instabilityIndex.toStringAsFixed(2),
+          ),
+          ResultRow(
+            label: 'Secondary Structure (Helix/Turn/Sheet)',
+            value:
+                '${(result.secondaryStructureFraction[0] * 100).toStringAsFixed(1)}% / ${(result.secondaryStructureFraction[1] * 100).toStringAsFixed(1)}% / ${(result.secondaryStructureFraction[2] * 100).toStringAsFixed(1)}%',
+          ),
+          ResultRow(
+            label: 'Molar Extinction (Reduced/Oxidized)',
+            value:
+                '${result.molarExtinctionCoefficient[0]} / ${result.molarExtinctionCoefficient[1]} M⁻¹cm⁻¹',
           ),
           const SizedBox(height: 16),
           Text('Amino Acids', style: theme.textTheme.labelLarge),
@@ -684,6 +706,19 @@ class DnaResultCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           ResultRow(label: 'Base Pairs', value: '${result.sequenceLength}'),
+          ResultRow(
+            label: 'GC Content',
+            value: '${result.gcContent.toStringAsFixed(1)}%',
+          ),
+          ResultRow(
+            label: 'Mol. Weight',
+            value: '${result.molecularWeight.toStringAsFixed(2)} Da',
+          ),
+          if (result.meltingTemp > 0)
+            ResultRow(
+              label: 'Melting Temp',
+              value: '${result.meltingTemp.toStringAsFixed(1)} °C',
+            ),
           ResultRow(label: 'Total K-mers', value: '${result.totalKmers}'),
           ResultRow(
             label: 'Unique Nodes',
@@ -733,6 +768,33 @@ class DnaResultCard extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 20),
+          if (result.reverseComplement.isNotEmpty) ...[
+            Text('Reverse Complement', style: theme.textTheme.labelLarge),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.15,
+                  ),
+                ),
+              ),
+              child: SelectableText(
+                result.reverseComplement,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
         ],
       ),
     );
