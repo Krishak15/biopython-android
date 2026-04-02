@@ -302,13 +302,14 @@ class PythonImageBridge {
   @Deprecated('Use analyzeProtein() instead')
   Future<Map<String, dynamic>> healthCheck() => healthBiology();
 
-  /// Search NCBI database (e.g., protein, nucleotide)
-  Future<List<Map<String, dynamic>>> ncbiSearch(String query, {String db = 'protein', int retmax = 50}) async {
+  Future<List<Map<String, dynamic>>> ncbiSearch(String query, {String db = 'protein', int retmax = 50, String? email, String? apiKey}) async {
     try {
       final raw = await _channel.invokeMethod('ncbiSearch', {
         'query': query,
         'db': db,
         'retmax': retmax,
+        'email': email,
+        'apiKey': apiKey,
       });
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       if (jsonMap['status'] == 'success') {
@@ -320,13 +321,14 @@ class PythonImageBridge {
     }
   }
 
-  /// Fetch a record from NCBI and analyze it
-  Future<Map<String, dynamic>> ncbiFetch(String id, {String db = 'protein', int limit = 100000}) async {
+  Future<Map<String, dynamic>> ncbiFetch(String id, {String db = 'protein', int limit = 100000, String? email, String? apiKey}) async {
     try {
       final raw = await _channel.invokeMethod('ncbiFetch', {
         'id': id, 
         'db': db,
         'limit': limit,
+        'email': email,
+        'apiKey': apiKey,
       });
       final jsonMap = jsonDecode(raw ?? '{}') as Map<String, dynamic>;
       if (jsonMap['status'] == 'success') {

@@ -13,8 +13,9 @@ import threading
 
 from Bio import Entrez
 
-# NCBI requires an email for Entrez API usage
-Entrez.email = "your_email@example.com"
+# NCBI requires an email for Entrez API usage. We no longer provide a fallback;
+# the bridge must pass a valid user identity to enable search/fetch.
+Entrez.email = None
 
 _entrez_lock = threading.Lock()
 
@@ -23,14 +24,19 @@ def _log(msg):
     print(f"[ncbi_service] {msg}", flush=True)
 
 
-def search_ncbi(query, db="protein", retmax=10):
+def search_ncbi(query, db="protein", retmax=10, email=None, api_key=None):
     """
     Search NCBI database using Entrez.esearch + esummary.
     Returns JSON string with search results (id, title, db).
     """
     try:
-        _log(f"Searching db={db} for query='{query}'")
+        _log(f"Searching db={db} for query='{query}' email={email}")
         with _entrez_lock:
+            if email:
+                Entrez.email = email
+            if api_key:
+                Entrez.api_key = api_key
+
             # Step 1: Search for IDs matching the query
             handle = Entrez.esearch(db=db, term=query, retmax=retmax)
             record = Entrez.read(handle)
@@ -69,7 +75,7 @@ def search_ncbi(query, db="protein", retmax=10):
         return json.dumps({"status": "error", "message": str(e)})
 
 
-def fetch_and_analyze(uid, db="protein", limit=100000):
+def fetch_and_analyze(uid, db="protein", limit=100000, email=None, api_key=None):
     """
     Fetch a sequence from NCBI by UID and analyze it.
 
@@ -80,8 +86,13 @@ def fetch_and_analyze(uid, db="protein", limit=100000):
     For DNA/RNA: computes GC content and length manually.
     """
     try:
-        _log(f"Fetching record id={uid} from db={db}")
+        _log(f"Fetching record id={uid} from db={db} email={email}")
         with _entrez_lock:
+            if email:
+                Entrez.email = email
+            if api_key:
+                Entrez.api_key = api_key
+
             # Fetch as FASTA plain text — no SeqIO parser needed
             handle = Entrez.efetch(
                 db=db, id=uid, rettype="fasta", retmode="text"

@@ -2,10 +2,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:screenshot/screenshot.dart';
 
 import '../services/biology_platform_bridge.dart';
+import '../services/result_share_service.dart';
 import '../providers/analysis_hub_provider.dart';
 import '../theme/app_theme.dart';
+import 'biotech_settings_screen.dart';
 
 class BiotechAnalysisScreen extends StatefulWidget {
   const BiotechAnalysisScreen({super.key});
@@ -20,6 +23,12 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
   final _ncbiController = TextEditingController();
   final _scrollController = ScrollController();
   String _ncbiDb = 'protein';
+
+  bool _isSharingProtein = false;
+  bool _isSharingDna = false;
+
+  final _proteinScreenshotController = ScreenshotController();
+  final _dnaScreenshotController = ScreenshotController();
 
   @override
   void initState() {
@@ -102,6 +111,16 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                 : null,
             tooltip: 'Purge Memory',
             icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BiotechSettingsScreen(),
+              ),
+            ),
+            tooltip: 'Lab Settings',
+            icon: const Icon(Icons.settings_outlined),
           ),
           const SizedBox(width: 16),
         ],
@@ -310,9 +329,14 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                           controller: _ncbiController,
                           decoration: InputDecoration(
                             prefixIcon: const Icon(Icons.search, size: 20),
-                            hintText: 'Accession number, DOI, or term...',
+                            hintText: provider.hasValidIdentity
+                                ? 'Accession number, DOI, or term...'
+                                : 'CONFIGURE EMAIL IN SETTINGS TO SEARCH',
+                            enabled: provider.hasValidIdentity,
                             suffixIcon: IconButton(
-                              onPressed: provider.isSearching
+                              onPressed:
+                                  !provider.hasValidIdentity ||
+                                      provider.isSearching
                                   ? null
                                   : () => provider.searchNCBI(
                                       context,
@@ -327,11 +351,28 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : const Icon(Icons.cloud_download_outlined),
-                              color: AppTheme.tertiary,
+                                  : Icon(
+                                      provider.hasValidIdentity
+                                          ? Icons.cloud_download_outlined
+                                          : Icons.lock_person_outlined,
+                                    ),
+                              color: provider.hasValidIdentity
+                                  ? AppTheme.tertiary
+                                  : Colors.white10,
                             ),
                           ),
                         ),
+                        if (!provider.hasValidIdentity) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            'UNAUTHORIZED: NCBI search requires a valid email identity in Laboratory Settings.',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: AppTheme.error,
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -342,7 +383,27 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                     _ResultHero(
                       theme: theme,
                       title: 'Analysis Results',
-                      child: ProteinResultCard(result: provider.proteinResult!),
+                      child: Screenshot(
+                        controller: _proteinScreenshotController,
+                        child: ProteinResultCard(
+                          result: provider.proteinResult!,
+                          onShare: _isSharingProtein
+                              ? null
+                              : () async {
+                                  setState(() => _isSharingProtein = true);
+                                  await Future.delayed(
+                                    const Duration(milliseconds: 100),
+                                  );
+                                  await ResultShareService.shareProteinResult(
+                                    _proteinScreenshotController,
+                                    provider.proteinResult!,
+                                  );
+                                  if (mounted) {
+                                    setState(() => _isSharingProtein = false);
+                                  }
+                                },
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 48),
                   ],
@@ -351,7 +412,27 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                     _ResultHero(
                       theme: theme,
                       title: 'Cluster Yield',
-                      child: DnaResultCard(result: provider.dnaResult!),
+                      child: Screenshot(
+                        controller: _dnaScreenshotController,
+                        child: DnaResultCard(
+                          result: provider.dnaResult!,
+                          onShare: _isSharingDna
+                              ? null
+                              : () async {
+                                  setState(() => _isSharingDna = true);
+                                  await Future.delayed(
+                                    const Duration(milliseconds: 100),
+                                  );
+                                  await ResultShareService.shareDnaResult(
+                                    _dnaScreenshotController,
+                                    provider.dnaResult!,
+                                  );
+                                  if (mounted) {
+                                    setState(() => _isSharingDna = false);
+                                  }
+                                },
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 48),
                   ],
@@ -983,8 +1064,9 @@ class ResultRow extends StatelessWidget {
 }
 
 class ProteinResultCard extends StatelessWidget {
-  const ProteinResultCard({required this.result, super.key});
+  const ProteinResultCard({required this.result, this.onShare, super.key});
   final ProteinAnalysisResult result;
+  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -1000,7 +1082,7 @@ class ProteinResultCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
+            color: AppTheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1),
@@ -1012,17 +1094,31 @@ class ProteinResultCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'DETAILED PROFILE',
-                    style: theme.textTheme.labelSmall?.copyWith(
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.analytics_outlined,
+                        color: AppTheme.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'DETAILED PROFILE',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppTheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (onShare != null)
+                    IconButton(
+                      onPressed: onShare,
+                      icon: const Icon(Icons.share_rounded, size: 18),
                       color: AppTheme.primary,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                  ),
-                  const Icon(
-                    Icons.analytics_outlined,
-                    color: AppTheme.primary,
-                    size: 20,
-                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -1088,8 +1184,9 @@ class ProteinResultCard extends StatelessWidget {
 }
 
 class DnaResultCard extends StatelessWidget {
-  const DnaResultCard({required this.result, super.key});
+  const DnaResultCard({required this.result, this.onShare, super.key});
   final DnaClassificationResult result;
+  final VoidCallback? onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -1111,7 +1208,7 @@ class DnaResultCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: AppTheme.surfaceContainerLow.withValues(alpha: 0.7),
+            color: AppTheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: theme.colorScheme.outlineVariant.withValues(alpha: 0.1),
@@ -1123,17 +1220,31 @@ class DnaResultCard extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'GENOMIC DIAGNOSTICS',
-                    style: theme.textTheme.labelSmall?.copyWith(
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.query_stats_outlined,
+                        color: AppTheme.secondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'GENOMIC DIAGNOSTICS',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppTheme.secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (onShare != null)
+                    IconButton(
+                      onPressed: onShare,
+                      icon: const Icon(Icons.share_rounded, size: 18),
                       color: AppTheme.secondary,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                  ),
-                  const Icon(
-                    Icons.query_stats_outlined,
-                    color: AppTheme.secondary,
-                    size: 20,
-                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -1170,7 +1281,7 @@ class DnaResultCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (result.reverseComplement.isNotEmpty) ...[
+              if (result.reverseComplement.isNotEmpty && onShare != null) ...[
                 const SizedBox(height: 16),
                 _TechnicalSection(
                   theme: theme,

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:screenshot/screenshot.dart';
 
 import '../providers/analysis_hub_provider.dart';
 import '../services/biology_platform_bridge.dart';
+import '../services/result_share_service.dart';
 import '../providers/ncbi_record_provider.dart';
 import '../theme/app_theme.dart';
 import 'biotech_analysis_screen.dart';
@@ -31,7 +33,12 @@ class _NcbiRecordDetailsContent extends StatefulWidget {
 
 class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
   final _lengthController = TextEditingController();
+  final _proteinScreenshotController = ScreenshotController();
+  final _dnaScreenshotController = ScreenshotController();
   Timer? _debounce;
+  
+  bool _isSharingProtein = false;
+  bool _isSharingDna = false;
 
   late AnalysisHubProvider _hub;
 
@@ -348,16 +355,54 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
                       ),
                     if (type == 'protein' &&
                         provider.currentAnalysis.isNotEmpty)
-                      ProteinResultCard(
-                        result: ProteinAnalysisResult.fromJson(
-                          provider.currentAnalysis,
+                      Screenshot(
+                        controller: _proteinScreenshotController,
+                        child: ProteinResultCard(
+                          result: ProteinAnalysisResult.fromJson(
+                            provider.currentAnalysis,
+                          ),
+                          onShare: _isSharingProtein ? null : () async {
+                            setState(() => _isSharingProtein = true);
+                            await Future.delayed(const Duration(milliseconds: 100));
+                            final result = ProteinAnalysisResult.fromJson(
+                              provider.currentAnalysis,
+                            );
+                            await ResultShareService.shareProteinResult(
+                              _proteinScreenshotController,
+                              result,
+                              ncbiId: widget.record['id']?.toString(),
+                              itemName: widget.record['description']?.toString(),
+                            );
+                            if (mounted) {
+                              setState(() => _isSharingProtein = false);
+                            }
+                          },
                         ),
                       )
                     else if (type == 'nucleotide' &&
                         provider.currentAnalysis.isNotEmpty)
-                      DnaResultCard(
-                        result: DnaClassificationResult.fromJson(
-                          provider.currentAnalysis,
+                      Screenshot(
+                        controller: _dnaScreenshotController,
+                        child: DnaResultCard(
+                          result: DnaClassificationResult.fromJson(
+                            provider.currentAnalysis,
+                          ),
+                          onShare: _isSharingDna ? null : () async {
+                            setState(() => _isSharingDna = true);
+                            await Future.delayed(const Duration(milliseconds: 100));
+                            final result = DnaClassificationResult.fromJson(
+                              provider.currentAnalysis,
+                            );
+                            await ResultShareService.shareDnaResult(
+                              _dnaScreenshotController,
+                              result,
+                              ncbiId: widget.record['id']?.toString(),
+                              itemName: widget.record['description']?.toString(),
+                            );
+                            if (mounted) {
+                              setState(() => _isSharingDna = false);
+                            }
+                          },
                         ),
                       ),
 

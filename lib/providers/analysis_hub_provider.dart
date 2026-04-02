@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/biology_platform_bridge.dart';
 import '../screens/ncbi_search_results_screen.dart';
 
@@ -35,21 +36,44 @@ class AnalysisHubProvider extends ChangeNotifier {
   bool _isSafetyLocked = true;
   bool get isSafetyLocked => _isSafetyLocked;
 
+  bool _autoTelemetry = true;
+  bool get autoTelemetry => _autoTelemetry;
+
+  String? _userEmail;
+  String? get userEmail => _userEmail;
+
+  String? _ncbiApiKey;
+  String? get ncbiApiKey => _ncbiApiKey;
+
+  int _ncbiSearchLimit = 20;
+  int get ncbiSearchLimit => _ncbiSearchLimit;
+
+  bool get hasValidIdentity =>
+      _userEmail != null && _userEmail!.isNotEmpty && _userEmail!.contains('@');
+
   Map<String, dynamic>? _telemetry;
   Map<String, dynamic>? get telemetry => _telemetry;
 
   double get deviceStressFactor {
-    if (_telemetry == null) return 0.0;
+    if (_telemetry == null) {
+      return 0;
+    }
     final used = (_telemetry!['usedMemory'] as num).toDouble();
     final max = (_telemetry!['maxMemory'] as num).toDouble();
-    if (max == 0) return 0.0;
+    if (max == 0) {
+      return 0;
+    }
     return (used / max).clamp(0.0, 1.0);
   }
 
   String get deviceRiskLevel {
     final factor = deviceStressFactor;
-    if (factor < 0.6) return 'OPTIMAL';
-    if (factor < 0.82) return 'STRESSED';
+    if (factor < 0.6) {
+      return 'OPTIMAL';
+    }
+    if (factor < 0.82) {
+      return 'STRESSED';
+    }
     return 'CRITICAL';
   }
 
@@ -61,26 +85,73 @@ class AnalysisHubProvider extends ChangeNotifier {
   void startManualTelemetry() => _startTelemetryPolling();
   void stopManualTelemetry() => _stopTelemetryPolling();
 
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    _userEmail = prefs.getString('entrez_email');
+    _ncbiApiKey = prefs.getString('ncbi_api_key');
+    _isSafetyLocked = prefs.getBool('safety_locked') ?? true;
+    _maxSequenceLength = prefs.getInt('max_length') ?? 100000;
+    _ncbiSearchLimit = prefs.getInt('ncbi_search_limit') ?? 20;
+    _autoTelemetry = prefs.getBool('auto_telemetry') ?? true;
+    notifyListeners();
+  }
+
+  Future<void> setAutoTelemetry({required bool value}) async {
+    _autoTelemetry = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_telemetry', value);
+    notifyListeners();
+  }
+
+  Future<void> updateNcbiIdentity({String? email, String? apiKey}) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (email != null) {
+      await prefs.setString('entrez_email', email);
+      _userEmail = email;
+    }
+    if (apiKey != null) {
+      await prefs.setString('ncbi_api_key', apiKey);
+      _ncbiApiKey = apiKey;
+    }
+    notifyListeners();
+  }
+
   void setKmerSize(int value) {
     _kmerSize = value;
     notifyListeners();
   }
 
-  void setMaxSequenceLength(int value) {
-    _maxSequenceLength = value;
-    notifyListeners();
-  }
-
-  void toggleSafetyLock({required bool isLocked}) {
+  Future<void> toggleSafetyLock({required bool isLocked}) async {
     _isSafetyLocked = isLocked;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('safety_locked', isLocked);
+    
     // Re-lock forces the limit back to a safe range if it was exceeded
     if (isLocked && _maxSequenceLength > 100000) {
       _maxSequenceLength = 100000;
+      await prefs.setInt('max_length', 100000);
     }
     notifyListeners();
   }
 
+  Future<void> setMaxSequenceLength(int value) async {
+    _maxSequenceLength = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('max_length', value);
+    notifyListeners();
+  }
+
+  Future<void> setNcbiSearchLimit(int value) async {
+    _ncbiSearchLimit = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('ncbi_search_limit', value);
+    notifyListeners();
+  }
+
   void _startTelemetryPolling() {
+    if (!_autoTelemetry) {
+      return;
+    }
     _telemetryTimer?.cancel();
     _telemetryTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
       final data = await _bridge.getTelemetry();
@@ -200,11 +271,21 @@ class AnalysisHubProvider extends ChangeNotifier {
       return;
     }
 
+    if (!hasValidIdentity) {
+      _statusMessage = 'IDENTITY REQUIRED: Please configure email in settings.';
+      notifyListeners();
+      return;
+    }
+
     _isSearching = true;
     notifyListeners();
 
     try {
-      final results = await _bridge.ncbiSearch(query, db: db);
+      final results = await _bridge.ncbiSearch(query,
+          db: db,
+          retmax: _ncbiSearchLimit,
+          email: _userEmail,
+          apiKey: _ncbiApiKey);
       _isSearching = false;
       
       if (results.isEmpty) {

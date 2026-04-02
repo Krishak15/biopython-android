@@ -6,6 +6,7 @@ import 'screens/biotech_analysis_screen.dart';
 import 'providers/analysis_hub_provider.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const BioTechApp());
 }
 
@@ -15,7 +16,10 @@ class BioTechApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MultiProvider(
         providers: [
-          ChangeNotifierProvider(create: (_) => AnalysisHubProvider()..checkHealth()),
+          ChangeNotifierProvider(
+              create: (_) => AnalysisHubProvider()
+                ..checkHealth()
+                ..loadSettings()),
         ],
         child: MaterialApp(
           title: 'BioPy',

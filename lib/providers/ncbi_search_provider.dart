@@ -32,11 +32,14 @@ class NcbiSearchProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Respect the global sequence limit from AnalysisHubProvider
+      // Respect the global sequence limit and identity from AnalysisHubProvider
       final hub = Provider.of<AnalysisHubProvider>(context, listen: false);
       final limit = hub.maxSequenceLength;
+      final email = hub.userEmail;
+      final apiKey = hub.ncbiApiKey;
 
-      final record = await _bridge.ncbiFetch(id, db: db, limit: limit);
+      final record = await _bridge.ncbiFetch(id,
+          db: db, limit: limit, email: email, apiKey: apiKey);
       _isFetching = false;
       
       if (!context.mounted) {

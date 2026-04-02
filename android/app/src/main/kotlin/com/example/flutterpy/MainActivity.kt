@@ -159,11 +159,13 @@ class MainActivity : FlutterActivity() {
         val query = call.argument<String>("query") ?: ""
         val db = call.argument<String>("db") ?: "protein"
         val retmax = call.argument<Int>("retmax") ?: 10
+        val email = call.argument<String>("email")
+        val apiKey = call.argument<String>("apiKey")
         Log.d(TAG, "handleNcbiSearch: start query=$query db=$db retmax=$retmax")
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 val module = Python.getInstance().getModule("ncbi_service")
-                val jsonResult = module.callAttr("search_ncbi", query, db, retmax).toString()
+                val jsonResult = module.callAttr("search_ncbi", query, db, retmax, email, apiKey).toString()
                 Log.d(TAG, "handleNcbiSearch: success")
                 withContext(Dispatchers.Main) { result.success(jsonResult) }
             } catch (e: Exception) {
@@ -177,11 +179,13 @@ class MainActivity : FlutterActivity() {
         val uid = call.argument<String>("id") ?: ""
         val db = call.argument<String>("db") ?: "protein"
         val limit = (call.argument<Any>("limit") as? Number)?.toInt() ?: 100000
+        val email = call.argument<String>("email")
+        val apiKey = call.argument<String>("apiKey")
         Log.d(TAG, "handleNcbiFetch: start id=$uid db=$db limit=$limit")
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 val module = Python.getInstance().getModule("ncbi_service")
-                val jsonResult = module.callAttr("fetch_and_analyze", uid, db, limit).toString()
+                val jsonResult = module.callAttr("fetch_and_analyze", uid, db, limit, email, apiKey).toString()
                 Log.d(TAG, "handleNcbiFetch: success")
                 withContext(Dispatchers.Main) { result.success(jsonResult) }
             } catch (e: Exception) {

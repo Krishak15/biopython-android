@@ -39,7 +39,11 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   
   icons_launcher: ^3.1.0
+  path_provider: ^2.1.5
   provider: ^6.1.5+1
+  screenshot: ^3.0.0
+  share_plus: ^12.0.2
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_lints: ^6.0.0
