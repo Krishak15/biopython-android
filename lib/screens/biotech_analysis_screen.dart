@@ -17,7 +17,8 @@ class BiotechAnalysisScreen extends StatefulWidget {
   State<BiotechAnalysisScreen> createState() => _BiotechAnalysisScreenState();
 }
 
-class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
+class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen>
+    with SingleTickerProviderStateMixin {
   final _proteinController = TextEditingController();
   final _dnaController = TextEditingController();
   final _ncbiController = TextEditingController();
@@ -30,9 +31,20 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
   final _proteinScreenshotController = ScreenshotController();
   final _dnaScreenshotController = ScreenshotController();
 
+  late final TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      final newDb = _tabController.index == 0 ? 'protein' : 'nucleotide';
+      if (_ncbiDb != newDb) {
+        setState(() {
+          _ncbiDb = newDb;
+        });
+      }
+    });
     // Listen to provider to auto-scroll when analysis completes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AnalysisHubProvider>().addListener(_onProviderChange);
@@ -59,6 +71,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     context.read<AnalysisHubProvider>().removeListener(_onProviderChange);
     _proteinController.dispose();
     _dnaController.dispose();
@@ -149,134 +162,175 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  _bentoCard(
-                    theme: theme,
-                    accentColor: AppTheme.primary,
-                    icon: Icons.hexagon_outlined,
-                    title: 'Proteomics Workbench',
-                    subtitle: 'FASTA Source / Raw Chain',
-                    child: Column(
-                      children: [
-                        _SequenceInputField(
-                          label: 'PEPTIDE INPUT',
-                          controller: _proteinController,
-                          hint: 'Ex: MFVFLVLLPLVSSQCVNLTTR...',
-                          error: provider.proteinError,
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: _GradientButton(
-                                label: 'EXECUTE ANALYSIS',
-                                onPressed: status != AnalysisStatus.processing
-                                    ? () => provider.analyzeProtein(
-                                        _proteinController.text.trim(),
-                                      )
-                                    : null,
-                                theme: theme,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _SecondaryButton(
-                                label: 'RESET',
-                                onPressed: _proteinController.clear,
-                                theme: theme,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                  TabBar(
+                    controller: _tabController,
+                    indicatorColor: _tabController.index == 0
+                        ? AppTheme.primary
+                        : AppTheme.secondary,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.white54,
+                    onTap: (index) {
+                      setState(() {});
+                    },
+                    tabs: const [
+                      Tab(text: 'PROTEIN'),
+                      Tab(text: 'DNA / RNA'),
+                    ],
                   ),
+                  const SizedBox(height: 32),
 
-                  const SizedBox(height: 24),
-
-                  _bentoCard(
-                    theme: theme,
-                    accentColor: AppTheme.secondary,
-                    icon: Icons.grain_outlined,
-                    title: 'K-mer Logic',
-                    subtitle: 'K-Length Parameter',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest
-                                .withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: theme.colorScheme.outlineVariant
-                                  .withValues(alpha: 0.1),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'SCALE',
-                                    style: theme.textTheme.labelSmall,
-                                  ),
-                                  Text(
-                                    'k=${provider.kmerSize}',
-                                    style: theme.textTheme.headlineSmall
-                                        ?.copyWith(
-                                          color: AppTheme.secondary,
-                                          fontWeight: FontWeight.w900,
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOutQuart,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _tabController.index == 0
+                          ? Container(
+                              key: const ValueKey('protein_bench'),
+                              margin: const EdgeInsets.only(bottom: 24),
+                              child: _bentoCard(
+                                theme: theme,
+                                accentColor: AppTheme.primary,
+                                icon: Icons.hexagon_outlined,
+                                title: 'Proteomics Workbench',
+                                subtitle: 'FASTA Source / Raw Chain',
+                                child: Column(
+                                  children: [
+                                    _SequenceInputField(
+                                      label: 'PEPTIDE INPUT',
+                                      controller: _proteinController,
+                                      hint: 'Ex: MFVFLVLLPLVSSQCVNLTTR...',
+                                      error: provider.proteinError,
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 2,
+                                          child: _GradientButton(
+                                            label: 'EXECUTE ANALYSIS',
+                                            onPressed:
+                                                status !=
+                                                    AnalysisStatus.processing
+                                                ? () => provider.analyzeProtein(
+                                                    _proteinController.text
+                                                        .trim(),
+                                                  )
+                                                : null,
+                                            theme: theme,
+                                          ),
                                         ),
-                                  ),
-                                ],
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: _SecondaryButton(
+                                            label: 'RESET',
+                                            onPressed: _proteinController.clear,
+                                            theme: theme,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                              Slider(
-                                value: provider.kmerSize.toDouble(),
-                                min: 1,
-                                max: 12,
-                                divisions: 11,
-                                activeColor: AppTheme.secondary,
-                                inactiveColor:
-                                    theme.colorScheme.surfaceContainerHighest,
-                                onChanged: (v) =>
-                                    provider.setKmerSize(v.toInt()),
+                            )
+                          : Container(
+                              key: const ValueKey('dna_bench'),
+                              margin: const EdgeInsets.only(bottom: 24),
+                              child: _bentoCard(
+                                theme: theme,
+                                accentColor: AppTheme.secondary,
+                                icon: Icons.grain_outlined,
+                                title: 'K-mer Logic',
+                                subtitle: 'K-Length Parameter',
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: theme
+                                            .colorScheme
+                                            .surfaceContainerHighest
+                                            .withValues(alpha: 0.3),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: theme
+                                              .colorScheme
+                                              .outlineVariant
+                                              .withValues(alpha: 0.1),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                'SCALE',
+                                                style:
+                                                    theme.textTheme.labelSmall,
+                                              ),
+                                              Text(
+                                                'k=${provider.kmerSize}',
+                                                style: theme
+                                                    .textTheme
+                                                    .headlineSmall
+                                                    ?.copyWith(
+                                                      color: AppTheme.secondary,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                          Slider(
+                                            value: provider.kmerSize.toDouble(),
+                                            min: 1,
+                                            max: 12,
+                                            divisions: 11,
+                                            activeColor: AppTheme.secondary,
+                                            inactiveColor: theme
+                                                .colorScheme
+                                                .surfaceContainerHighest,
+                                            onChanged: (v) =>
+                                                provider.setKmerSize(v.toInt()),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    _SequenceInputField(
+                                      label: 'NUCLEOTIDE STRING',
+                                      controller: _dnaController,
+                                      hint: 'Ex: AGCTAGCTAGC...',
+                                      error: provider.dnaError,
+                                    ),
+                                    const SizedBox(height: 24),
+                                    _GradientButton(
+                                      label: 'ANALYZE SEQUENCE',
+                                      onPressed:
+                                          status != AnalysisStatus.processing
+                                          ? () => provider.classifyDna(
+                                              _dnaController.text.trim(),
+                                            )
+                                          : null,
+                                      theme: theme,
+                                      isSecondary: true,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        _SequenceInputField(
-                          label: 'NUCLEOTIDE STRING',
-                          controller: _dnaController,
-                          hint: 'Ex: AGCTAGCTAGC...',
-                          error: provider.dnaError,
-                        ),
-                        const SizedBox(height: 24),
-                        _GradientButton(
-                          label: 'PROCESS FRAGMENTS',
-                          onPressed: status != AnalysisStatus.processing
-                              ? () => provider.classifyDna(
-                                  _dnaController.text.trim(),
-                                )
-                              : null,
-                          theme: theme,
-                          isSecondary: true,
-                        ),
-                      ],
+                            ),
                     ),
                   ),
-
-                  const SizedBox(height: 24),
 
                   _bentoCard(
                     theme: theme,
                     accentColor: AppTheme.tertiary,
                     icon: Icons.storage_outlined,
-                    title: 'Entrez Query Engine',
+                    title: 'NCBI Entrez Query',
                     subtitle: 'Database Selection',
                     child: Column(
                       children: [
@@ -311,7 +365,7 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
                                     items: const [
                                       DropdownMenuItem(
                                         value: 'protein',
-                                        child: Text('Protein Archive'),
+                                        child: Text('Protein Database'),
                                       ),
                                       DropdownMenuItem(
                                         value: 'nucleotide',
@@ -379,63 +433,87 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
 
                   const SizedBox(height: 64),
 
-                  if (provider.proteinResult != null) ...[
-                    _ResultHero(
-                      theme: theme,
-                      title: 'Analysis Results',
-                      child: Screenshot(
-                        controller: _proteinScreenshotController,
-                        child: ProteinResultCard(
-                          result: provider.proteinResult!,
-                          onShare: _isSharingProtein
-                              ? null
-                              : () async {
-                                  setState(() => _isSharingProtein = true);
-                                  await Future.delayed(
-                                    const Duration(milliseconds: 100),
-                                  );
-                                  await ResultShareService.shareProteinResult(
-                                    _proteinScreenshotController,
-                                    provider.proteinResult!,
-                                  );
-                                  if (mounted) {
-                                    setState(() => _isSharingProtein = false);
-                                  }
-                                },
-                        ),
-                      ),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOutQuart,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child:
+                          _tabController.index == 0 &&
+                              provider.proteinResult != null
+                          ? Container(
+                              key: const ValueKey('protein_result'),
+                              margin: const EdgeInsets.only(bottom: 48),
+                              child: _ResultHero(
+                                theme: theme,
+                                title: 'Analysis Results',
+                                child: Screenshot(
+                                  controller: _proteinScreenshotController,
+                                  child: ProteinResultCard(
+                                    result: provider.proteinResult!,
+                                    onShare: _isSharingProtein
+                                        ? null
+                                        : () async {
+                                            setState(
+                                              () => _isSharingProtein = true,
+                                            );
+                                            await Future.delayed(
+                                              const Duration(milliseconds: 100),
+                                            );
+                                            await ResultShareService.shareProteinResult(
+                                              _proteinScreenshotController,
+                                              provider.proteinResult!,
+                                            );
+                                            if (mounted) {
+                                              setState(
+                                                () => _isSharingProtein = false,
+                                              );
+                                            }
+                                          },
+                                  ),
+                                ),
+                              ),
+                            )
+                          : _tabController.index == 1 &&
+                                provider.dnaResult != null
+                          ? Container(
+                              key: const ValueKey('dna_result'),
+                              margin: const EdgeInsets.only(bottom: 48),
+                              child: _ResultHero(
+                                theme: theme,
+                                title: 'Cluster Yield',
+                                child: Screenshot(
+                                  controller: _dnaScreenshotController,
+                                  child: DnaResultCard(
+                                    result: provider.dnaResult!,
+                                    onShare: _isSharingDna
+                                        ? null
+                                        : () async {
+                                            setState(
+                                              () => _isSharingDna = true,
+                                            );
+                                            await Future.delayed(
+                                              const Duration(milliseconds: 100),
+                                            );
+                                            await ResultShareService.shareDnaResult(
+                                              _dnaScreenshotController,
+                                              provider.dnaResult!,
+                                            );
+                                            if (mounted) {
+                                              setState(
+                                                () => _isSharingDna = false,
+                                              );
+                                            }
+                                          },
+                                  ),
+                                ),
+                              ),
+                            )
+                          : const SizedBox.shrink(
+                              key: ValueKey('empty_result'),
+                            ),
                     ),
-                    const SizedBox(height: 48),
-                  ],
-
-                  if (provider.dnaResult != null) ...[
-                    _ResultHero(
-                      theme: theme,
-                      title: 'Cluster Yield',
-                      child: Screenshot(
-                        controller: _dnaScreenshotController,
-                        child: DnaResultCard(
-                          result: provider.dnaResult!,
-                          onShare: _isSharingDna
-                              ? null
-                              : () async {
-                                  setState(() => _isSharingDna = true);
-                                  await Future.delayed(
-                                    const Duration(milliseconds: 100),
-                                  );
-                                  await ResultShareService.shareDnaResult(
-                                    _dnaScreenshotController,
-                                    provider.dnaResult!,
-                                  );
-                                  if (mounted) {
-                                    setState(() => _isSharingDna = false);
-                                  }
-                                },
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -485,12 +563,17 @@ class _BiotechAnalysisScreenState extends State<BiotechAnalysisScreen> {
               child: Icon(icon, color: accentColor),
             ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: theme.textTheme.titleLarge),
-                Text(subtitle.toUpperCase(), style: theme.textTheme.labelSmall),
-              ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: theme.textTheme.titleLarge),
+                  Text(
+                    subtitle.toUpperCase(),
+                    style: theme.textTheme.labelSmall,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -524,7 +607,7 @@ class _HeroSection extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Integrated analytical suite for high-throughput protein modeling, DNA k-mer classification, and multi-omics data retrieval.',
+          'Integrated analytical suite for high-throughput protein analysis, DNA/RNA sequence classification using k-mers, and multi-omics data analysis.',
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             height: 1.6,
@@ -842,7 +925,7 @@ class _ResultHero extends StatelessWidget {
     children: [
       Row(
         children: [
-          Text(title, style: theme.textTheme.headlineMedium),
+          Flexible(child: Text(title, style: theme.textTheme.headlineMedium)),
           const SizedBox(width: 16),
           Expanded(
             child: Container(
@@ -1028,9 +1111,15 @@ class _SequenceInputField extends StatelessWidget {
 }
 
 class ResultRow extends StatelessWidget {
-  const ResultRow({required this.label, required this.value, super.key});
+  const ResultRow({
+    required this.label,
+    required this.value,
+    super.key,
+    this.toUpperCase = true,
+  });
   final String label;
   final String value;
+  final bool toUpperCase;
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1044,7 +1133,7 @@ class ResultRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  label.toUpperCase(),
+                  toUpperCase ? label.toUpperCase() : label,
                   style: theme.textTheme.labelSmall?.copyWith(fontSize: 9),
                 ),
                 const SizedBox(height: 4),
@@ -1122,31 +1211,58 @@ class ProteinResultCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                childAspectRatio: 2,
+              Column(
                 children: [
-                  ResultRow(
-                    label: 'MW',
-                    value: '${result.molecularWeight.toStringAsFixed(2)} Da',
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ResultRow(
+                          label: 'MW',
+                          value:
+                              '${result.molecularWeight.toStringAsFixed(2)} Da',
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ResultRow(
+                          label: 'ISOELECTRIC POINT (pI)',
+                          value: result.isoelectricPoint.toStringAsFixed(2),
+                          toUpperCase: false,
+                        ),
+                      ),
+                    ],
                   ),
-                  ResultRow(
-                    label: 'pI',
-                    value: result.isoelectricPoint.toStringAsFixed(2),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ResultRow(
+                          label: 'AROMATICITY',
+                          value: result.aromaticity.toStringAsFixed(3),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ResultRow(
+                          label: 'INSTABILITY INDEX',
+                          value: result.instabilityIndex.toStringAsFixed(2),
+                        ),
+                      ),
+                    ],
                   ),
-                  ResultRow(
-                    label: 'AROMATICITY',
-                    value: result.aromaticity.toStringAsFixed(3),
-                  ),
-                  ResultRow(
-                    label: 'INSTABILITY',
-                    value: result.instabilityIndex.toStringAsFixed(2),
-                  ),
-                  ResultRow(
-                    label: 'GRAVY',
-                    value: result.gravy.toStringAsFixed(3),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ResultRow(
+                          label: 'GRAVY',
+                          value: result.gravy.toStringAsFixed(3),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Spacer(),
+                    ],
                   ),
                 ],
               ),
@@ -1248,36 +1364,62 @@ class DnaResultCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                childAspectRatio: 2,
+              Column(
                 children: [
-                  ResultRow(
-                    label: 'BASE PAIRS',
-                    value: '${result.sequenceLength}',
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ResultRow(
+                          label: 'BASE PAIRS',
+                          value: '${result.sequenceLength}',
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ResultRow(
+                          label: 'GC CONTENT',
+                          value: '${result.gcContent.toStringAsFixed(1)}%',
+                        ),
+                      ),
+                    ],
                   ),
-                  ResultRow(
-                    label: 'GC CONTENT',
-                    value: '${result.gcContent.toStringAsFixed(1)}%',
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ResultRow(
+                          label: 'MOL. WEIGHT',
+                          value:
+                              '${(result.molecularWeight / 1000).toStringAsFixed(2)} kDa',
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ResultRow(
+                          label: 'MELTING TEMP',
+                          value: '${result.meltingTemp.toStringAsFixed(1)} °C',
+                        ),
+                      ),
+                    ],
                   ),
-                  ResultRow(
-                    label: 'MOL. WEIGHT',
-                    value:
-                        '${(result.molecularWeight / 1000).toStringAsFixed(2)} kDa',
-                  ),
-                  ResultRow(
-                    label: 'MELTING TEMP',
-                    value: '${result.meltingTemp.toStringAsFixed(1)} °C',
-                  ),
-                  ResultRow(
-                    label: 'TOTAL K-MERS',
-                    value: '${result.totalKmers}',
-                  ),
-                  ResultRow(
-                    label: 'UNIQUE NODES',
-                    value: '${result.frequencies.length}',
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ResultRow(
+                          label: 'TOTAL K-MERS',
+                          value: '${result.totalKmers}',
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ResultRow(
+                          label: 'UNIQUE NODES',
+                          value: '${result.frequencies.length}',
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

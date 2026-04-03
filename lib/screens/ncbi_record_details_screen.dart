@@ -129,21 +129,23 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.tertiary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'NCBI ACCESSION: ${widget.record['id'] ?? 'Unknown'}',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: AppTheme.tertiary,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.5,
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.tertiary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'NCBI ACCESSION: ${widget.record['id'] ?? 'Unknown'}',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: AppTheme.tertiary,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                              ),
                             ),
                           ),
                         ),
@@ -195,12 +197,14 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                'SEQUENCE CALIBRATION',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                  color: accentColor,
+                              Flexible(
+                                child: Text(
+                                  'SEQUENCE CALIBRATION',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2,
+                                    color: accentColor,
+                                  ),
                                 ),
                               ),
                               Row(
@@ -437,11 +441,13 @@ class _NcbiRecordDetailsContentState extends State<_NcbiRecordDetailsContent> {
                 // Sequence Extractor Display
                 Row(
                   children: [
-                    Text(
-                      'PRIMARY DATA STREAM',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2,
+                    Flexible(
+                      child: Text(
+                        'PRIMARY DATA STREAM',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                        ),
                       ),
                     ),
                     const Spacer(),
